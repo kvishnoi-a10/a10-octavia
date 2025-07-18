@@ -20,7 +20,7 @@ from requests.exceptions import ConnectionError
 from taskflow import task
 
 from octavia.common import exceptions
-from octavia.controller.worker.v1.tasks import lifecycle_tasks
+from octavia.controller.worker.v2.tasks import lifecycle_tasks
 
 from a10_octavia.common import a10constants
 from a10_octavia.common import openstack_mappings
@@ -192,6 +192,6 @@ class HealthMonitorToErrorOnRevertTask(lifecycle_tasks.BaseLifecycleTask):
 
     def revert(self, health_mon, *args, **kwargs):
         try:
-            self.task_utils.mark_health_mon_prov_status_error(health_mon.pool_id)
+            self.task_utils.mark_health_mon_prov_status_error(health_mon[constants.POOL_ID])
         except Exception as e:
             LOG.exception("Failed to change status to error due to: %s", e)

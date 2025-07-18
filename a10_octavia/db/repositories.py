@@ -52,9 +52,9 @@ class BaseRepository(object):
         :param model_kwargs: Attributes of the model to insert.
         :returns: octavia.common.data_model
         """
-        with session.begin(subtransactions=True):
-            model = self.model_class(**model_kwargs)
-            session.add(model)
+
+        model = self.model_class(**model_kwargs)
+        session.add(model)
         return model.to_data_model()
 
     def delete(self, session, **filters):
@@ -67,9 +67,8 @@ class BaseRepository(object):
         """
         models = session.query(self.model_class).filter_by(**filters).all()
         for model in models:
-            with session.begin(subtransactions=True):
-                session.delete(model)
-                session.flush()
+            session.delete(model)
+            session.flush()
 
     def delete_batch(self, session, ids=None):
         """Batch deletes by entity ids."""
@@ -84,9 +83,9 @@ class BaseRepository(object):
         :param model_kwargs: Entity attributes that should be updates.
         :returns: octavia.common.data_model
         """
-        with session.begin(subtransactions=True):
-            session.query(self.model_class).filter_by(
-                id=id).update(model_kwargs)
+
+        session.query(self.model_class).filter_by(
+            id=id).update(model_kwargs)
 
     def get(self, session, **filters):
         """Retrieves an entity from the database.
@@ -218,9 +217,8 @@ class VThunderRepository(BaseRepository):
         self.update(session, id, health_state=new_state)
 
     def unset_vthunder_busy_health_state(self, session):
-        with session.begin(subtransactions=True):
-            session.query(self.model_class).filter_by(
-                health_state='BUSY').update({"health_state": 'UP'})
+        session.query(self.model_class).filter_by(
+            health_state='BUSY').update({"health_state": 'UP'})
 
     def get_vthunder_from_lb(self, session, lb_id):
         model = session.query(self.model_class).filter(
@@ -341,16 +339,14 @@ class VThunderRepository(BaseRepository):
         self.update(session, id, status=new_status)
 
     def get_spare_vthunder_count(self, session):
-        with session.begin(subtransactions=True):
-            count = session.query(self.model_class).filter_by(
-                status="READY", loadbalancer_id=None).count()
+        count = session.query(self.model_class).filter_by(
+            status="READY", loadbalancer_id=None).count()
 
         return count
 
     def get_busy_spare_vthunder_count(self, session):
-        with session.begin(subtransactions=True):
-            count = session.query(self.model_class).filter_by(
-                status="BUSY", loadbalancer_id=None).count()
+        count = session.query(self.model_class).filter_by(
+            status="BUSY", loadbalancer_id=None).count()
 
         return count
 
@@ -383,9 +379,8 @@ class VThunderRepository(BaseRepository):
         return list_projects
 
     def update_last_write_mem(self, session, ip_address, partition, **model_kwargs):
-        with session.begin(subtransactions=True):
-            session.query(self.model_class).filter_by(
-                    ip_address=ip_address, partition_name=partition).update(model_kwargs)
+        session.query(self.model_class).filter_by(
+                ip_address=ip_address, partition_name=partition).update(model_kwargs)
 
     def get_vthunder_by_project_id_and_role(self, session, project_id, role):
         model = session.query(self.model_class).filter(
@@ -699,6 +694,5 @@ class ListenerStatisticsRepository(repo.ListenerStatisticsRepository):
 
         models = session.query(self.model_class).filter_by(**filters).all()
         for model in models:
-            with session.begin(subtransactions=True):
-                session.delete(model)
-                session.flush()
+            session.delete(model)
+            session.flush()
