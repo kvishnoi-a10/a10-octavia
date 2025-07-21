@@ -18,7 +18,7 @@ from requests.exceptions import ConnectionError
 from taskflow import task
 
 from octavia.common import constants
-from octavia.controller.worker.v1.tasks import lifecycle_tasks
+from octavia.controller.worker.v2.tasks import lifecycle_tasks
 
 import acos_client.errors as acos_errors
 
