@@ -607,7 +607,7 @@ class HandleNetworkDeltas(BaseNetworkTask):
 #         except Exception as e:
 #             LOG.error("Failed to unplug VIP.  Resources may still "
 #                       "be in use from vip: %(vip)s due to error: %(except)s",
-#                       {'vip': loadbalancer.vip.ip_address, 'except': e})
+#                       {'vip': loadbalancer[VIP_ADDRESS], 'except': e})
 
 
 class UpdateVIPSecurityGroup(BaseNetworkTask):
@@ -742,7 +742,7 @@ class AllocateVIP(BaseNetworkTask):
         #           "ip_address %s",
         #           loadbalancer.vip.port_id,
         #           loadbalancer.vip.subnet_id,
-        #           loadbalancer.vip.ip_address)
+        #           loadbalancer[VIP_ADDRESS])
         # return self.network_driver.allocate_vip(loadbalancer)
         LOG.debug("Allocating vip with port id %s, subnet id %s, "
                   "ip address %s for load balancer %s",
@@ -802,7 +802,7 @@ class DeallocateVIP(BaseNetworkTask):
         except Exception as e:
             LOG.error("Failed to deallocate VIP.  Resources may still "
                       "be in use from vip: %(vip)s due to error: %(except)s",
-                      {'vip': loadbalancer.vip.ip_address, 'except': e})
+                      {'vip': loadbalancer[constants.VIP_ADDRESS], 'except': e})
 
 
 class UpdateVIP(BaseNetworkTask):
@@ -1121,7 +1121,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
             msg = "Failed to create neutron port for SLB resource: %s "
             if conf_floating_ip:
                 msg += "with floating IP {}".format(conf_floating_ip)
-            LOG.error(msg, lb_resource.id)
+            LOG.error(msg, lb_resource[constants.LOADBALANCER_ID])
             raise e
         return vrid
 
@@ -1152,7 +1152,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
                 conf_floating_ip = CONF.a10_global.vrid_floating_ip
         else:
             conf_floating_ip = a10_utils.get_vrid_floating_ip_for_project(
-                lb_resource.project_id)
+                lb_resource[constants.PROJECT_ID])
 
         if not conf_floating_ip:
             for vrid in updated_vrid_list:
@@ -1237,7 +1237,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
     def revert(self, result, vthunder, lb_resource, vrid_list, subnet, *args, **kwargs):
         LOG.warning(
             "Reverting VRRP floating IP delta task for lb_resource %s",
-            lb_resource.id)
+            lb_resource[constants.LOADBALANCER_ID])
         # Delete newly added ports
         for port in self.added_fip_ports:
             try:
@@ -1408,7 +1408,7 @@ class GetLBResourceSubnet(BaseNetworkTask):
         if not hasattr(lb_resource, 'subnet_id'):
             # Special case for load balancers as their vips have the subnet
             # info
-            subnet = self.network_driver.get_subnet(lb_resource.vip.subnet_id)
+            subnet = self.network_driver.get_subnet(lb_resource[constants.VIP_SUBNET_ID])
         elif lb_resource.subnet_id:
             subnet = self.network_driver.get_subnet(lb_resource.subnet_id)
         else:

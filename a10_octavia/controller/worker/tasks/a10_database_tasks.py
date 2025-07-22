@@ -163,10 +163,10 @@ class CheckExistingThunderToProjectMappedEntries(BaseDatabaseTask):
             config_ip_addr_partition = '{}:{}'.format(
                 vthunder_config.ip_address, vthunder_config.partition_name)
             if existing_ip_addr_partition == config_ip_addr_partition:
-                if loadbalancer.project_id not in (vthunder.project_id,
+                if loadbalancer[constants.PROJECT_ID] not in (vthunder.project_id,
                                                    utils.get_parent_project(vthunder.project_id)):
                     raise exceptions.ProjectInUseByExistingThunderError(
-                        config_ip_addr_partition, vthunder.project_id, loadbalancer.project_id)
+                        config_ip_addr_partition, vthunder.project_id, loadbalancer[constants.PROJECT_ID])
 
 
 class DeleteVThunderEntry(BaseDatabaseTask):
@@ -186,7 +186,7 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
     """Get VThunder from db using LoadBalancer"""
 
     def execute(self, loadbalancer, master_amphora_status=True):
-        loadbalancer_id = loadbalancer.id
+        loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
         with db_apis.session().begin() as session:
             vthunder = self.vthunder_repo.get_vthunder_from_lb(
                 session, loadbalancer_id)
@@ -278,7 +278,7 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
                     password=vthunder_config.password,
                     ip_address=vthunder_config.ip_address,
                     undercloud=vthunder_config.undercloud,
-                    loadbalancer_id=loadbalancer.id,
+                    loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID],
                     project_id=vthunder_config.project_id,
                     axapi_version=vthunder_config.axapi_version,
                     topology="STANDALONE",
@@ -294,7 +294,7 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
         except Exception as e:
             LOG.error(
                 'Failed to create vThunder entry in db for load balancer: %s.',
-                loadbalancer.id)
+                loadbalancer[constants.LOADBALANCER_ID])
             raise e
 
     def revert(self, result, loadbalancer, vthunder_config, *args, **kwargs):
@@ -305,15 +305,15 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
 
         LOG.warning(
             'Reverting create Rack VThunder in DB for load balancer: %s',
-            loadbalancer.id)
+            loadbalancer[constants.LOADBALANCER_ID])
         try:
             with db_apis.session().begin() as session:
                 self.vthunder_repo.delete(
-                    session, loadbalancer_id=loadbalancer.id)
+                    session, loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID])
         except Exception:
             LOG.error(
                 "Failed to delete vThunder entry for load balancer: %s",
-                loadbalancer.id)
+                loadbalancer[constants.LOADBALANCER_ID])
 
 
 class CreateVThunderHealthEntry(BaseDatabaseTask):
@@ -913,13 +913,13 @@ class CountLoadbalancersWithFlavor(BaseDatabaseTask):
                         partition_name=vthunder.partition_name,
                         ip_address=vthunder.ip_address)
                 else:
-                    project_list = [loadbalancer.project_id]
+                    project_list = [loadbalancer[constants.PROJECT_ID]]
 
                 return self.loadbalancer_repo.get_lb_count_by_flavor(
-                    session, project_list, loadbalancer.flavor_id)
+                    session, project_list, loadbalancer.get(constants.FLAVOR_ID))
         except Exception as e:
             LOG.exception("Failed to get LB count for flavor %s due to %s ",
-                          loadbalancer.flavor_id, str(e))
+                          loadbalancer.get(constants.FLAVOR_ID), str(e))
             raise e
         return 0
 
@@ -1034,7 +1034,7 @@ class AddProjectSetIdDB(BaseDatabaseTask):
         mgmt_subnet = CONF.a10_controller_worker.amp_boot_network_list[0]
 
         try:
-            project_id = loadbalancer.project_id
+            project_id = loadbalancer[constants.PROJECT_ID]
             with db_apis.session().begin() as session:
                 entry = self.vrrp_set_repo.get(session, mgmt_subnet=mgmt_subnet,
                                             project_id=project_id)
