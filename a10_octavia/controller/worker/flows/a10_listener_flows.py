@@ -180,7 +180,7 @@ class ListenerFlows(object):
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
             requires=constants.LISTENER))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
-            requires=constants.LISTENER))
+            requires=constants.PROJECT_ID))
         # delete_listener_flow.add(database_tasks.MarkLBActiveInDB(
         #     requires=constants.LOADBALANCER))
         delete_listener_flow.add(database_tasks.MarkLBActiveInDBByListener(
@@ -205,15 +205,14 @@ class ListenerFlows(object):
             rebind={constants.LISTENER: listener_name}))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
             name='decrement_listener_quota_' + listener_name,
-            requires=constants.LISTENER,
-            rebind={constants.LISTENER: listener_name}))
+            requires=constants.PROJECT_ID))
         return delete_listener_flow
 
     def get_delete_rack_listener_flow(self):
         """Flow to delete a rack listener """
 
         delete_listener_flow = linear_flow.Flow(constants.DELETE_LISTENER_FLOW)
-        delete_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
+        delete_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             requires=constants.LISTENER))
         delete_listener_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
@@ -224,7 +223,7 @@ class ListenerFlows(object):
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
             requires=constants.LISTENER))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
-            requires=constants.LISTENER))
+            requires=constants.PROJECT_ID))
         # delete_listener_flow.add(database_tasks.MarkLBActiveInDB(
         #     requires=constants.LOADBALANCER))
         delete_listener_flow.add(database_tasks.MarkLBActiveInDBByListener(
@@ -239,7 +238,7 @@ class ListenerFlows(object):
         """Flow to update a listener"""
 
         update_listener_flow = linear_flow.Flow(constants.UPDATE_LISTENER_FLOW)
-        update_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
+        update_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             requires=[constants.LISTENER]))
         update_listener_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
@@ -275,7 +274,7 @@ class ListenerFlows(object):
 
         create_listener_flow = linear_flow.Flow(constants.CREATE_LISTENER_FLOW)
         create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
-            requires=[constants.LISTENER]))
+            requires=[constants.LISTENERS]))
         create_listener_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))

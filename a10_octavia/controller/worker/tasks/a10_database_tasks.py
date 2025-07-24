@@ -634,31 +634,31 @@ class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
 
         with db_apis.session().begin() as session:
             self.loadbalancer_repo.update(session,
-                                        loadbalancer.id,
+                                        loadbalancer[constants.LOADBALANCER_ID],
                                         provisioning_status=constants.ACTIVE)
             self.listener_repo.prov_status_active_if_not_error(
-                session, listener.id)
+                session, listener[constants.LISTENER_ID])
 
     def revert(self, loadbalancer, listener, *args, **kwargs):
         """Mark the load balancer and listener in error state"""
         try:
             with db_apis.session().begin() as session:
                 self.loadbalancer_repo.update(session,
-                                            id=loadbalancer.id,
+                                            id=loadbalancer[constants.LOADBALANCER_ID],
                                             provisioning_status=constants.ERROR)
         except Exception as e:
             LOG.error("Failed to update load balancer %(lb) "
                       "provisioning status to ERROR due to: "
-                      "%(except)s", {'lb': loadbalancer.id, 'except': e})
+                      "%(except)s", {'lb': loadbalancer[constants.LOADBALANCER_ID], 'except': e})
         try:
             with db_apis.session().begin() as session:
                 self.listener_repo.update(session,
-                                        id=listener.id,
+                                        id=listener[constants.LISTENER_ID],
                                         provisioning_status=constants.ERROR)
         except Exception as e:
             LOG.error("Failed to update listener %(list) "
                       "provisioning status to ERROR due to: "
-                      "%(except)s", {'list': listener.id, 'except': e})
+                      "%(except)s", {'list': listener[constants.LISTENER_ID],'except':e})
 
 
 # class GetVRIDForLBResourceSubnet(BaseDatabaseTask):

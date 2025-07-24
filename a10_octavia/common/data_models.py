@@ -20,45 +20,6 @@ from sqlalchemy.orm import collections
 
 
 class BaseDataModel(object):
-    # def to_dict(self, calling_classes=None, recurse=False, **kwargs):
-    #     """Converts a data model to a dictionary."""
-    #     calling_classes = calling_classes or []
-    #     ret = {}
-    #     for attr in self.__dict__:
-    #         if attr.startswith('_') or not kwargs.get(attr, True):
-    #             continue
-    #         value = self.__dict__[attr]
-
-    #         if recurse:
-    #             if isinstance(getattr(self, attr), list):
-    #                 ret[attr] = []
-    #                 for item in value:
-    #                     if isinstance(item, BaseDataModel):
-    #                         if type(self) not in calling_classes:
-    #                             ret[attr].append(
-    #                                 item.to_dict(calling_classes=(
-    #                                     calling_classes + [type(self)])))
-    #                         else:
-    #                             ret[attr] = None
-    #                     else:
-    #                         ret[attr] = item
-    #             elif isinstance(getattr(self, attr), BaseDataModel):
-    #                 if type(self) not in calling_classes:
-    #                     ret[attr] = value.to_dict(
-    #                         calling_classes=calling_classes + [type(self)])
-    #                 else:
-    #                     ret[attr] = None
-    #             elif six.PY2 and isinstance(value, six.text_type):
-    #                 ret[attr.encode('utf8')] = value.encode('utf8')
-    #             else:
-    #                 ret[attr] = value
-    #         else:
-    #             if isinstance(getattr(self, attr), (BaseDataModel, list)):
-    #                 ret[attr] = None
-    #             else:
-    #                 ret[attr] = value
-
-    #     return ret
 
     def to_dict(self, calling_classes=None, recurse=False, **kwargs):
         """Converts a data model to a dictionary."""
