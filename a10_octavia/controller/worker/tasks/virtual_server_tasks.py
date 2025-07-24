@@ -38,8 +38,7 @@ class LoadBalancerParent(object):
         }
 
         status = self.axapi_client.slb.UP
-        # LOG.info('--------------------------------LoadBalancer: %s-----------------', loadbalancer)
-
+        
         if not loadbalancer.get(constants.PROVISIONING_STATUS, True):
             status = self.axapi_client.slb.DOWN
         config_args['status'] = status
@@ -114,7 +113,7 @@ class UpdateVirtualServerTask(LoadBalancerParent, task.Task):
     @axapi_client_decorator
     def execute(self, loadbalancer, vthunder, flavor_data=None, update_dict={}):
         try:
-            loadbalancer.__dict__.update(update_dict)
+            loadbalancer.update(update_dict)
             port_list = self.axapi_client.slb.virtual_server.get(
                 loadbalancer[constants.LOADBALANCER_ID])['virtual-server'].get('port-list')
             self.set(self.axapi_client.slb.virtual_server.replace, loadbalancer,
