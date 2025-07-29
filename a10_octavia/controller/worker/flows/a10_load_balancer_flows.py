@@ -16,19 +16,19 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from taskflow.patterns import linear_flow
 from taskflow.patterns import unordered_flow
-
+from octavia_lib.common import constants as lib_consts
 from octavia.common import constants
 from octavia.common import exceptions
 
 
-from octavia.controller.worker.v1.flows import amphora_flows
-from octavia.controller.worker.v1.flows import listener_flows
-from octavia.controller.worker.v1.flows import member_flows
-from octavia.controller.worker.v1.flows import pool_flows
-from octavia.controller.worker.v1.tasks import compute_tasks
-from octavia.controller.worker.v1.tasks import database_tasks
-from octavia.controller.worker.v1.tasks import lifecycle_tasks
-from octavia.controller.worker.v1.tasks import network_tasks
+from octavia.controller.worker.v2.flows import amphora_flows
+from octavia.controller.worker.v2.flows import listener_flows
+from octavia.controller.worker.v2.flows import member_flows
+from octavia.controller.worker.v2.flows import pool_flows
+from octavia.controller.worker.v2.tasks import compute_tasks
+from octavia.controller.worker.v2.tasks import database_tasks
+from octavia.controller.worker.v2.tasks import lifecycle_tasks
+from octavia.controller.worker.v2.tasks import network_tasks
 from octavia.controller.worker.v2.tasks import notification_tasks
 from octavia.db import api as db_apis
 from octavia.db import repositories as repo
@@ -67,10 +67,11 @@ class LoadBalancerFlows(object):
         self._vthunder_repo = a10repo.VThunderRepository()
         self.loadbalancer_repo = a10repo.LoadBalancerRepository()
 
-    def get_create_load_balancer_flow(self, load_balancer_id, topology, project_id,
+    def get_create_load_balancer_flow(self, load_balancer, topology, project_id,
                                       listeners=None, pools=None):
         """Flow to create a load balancer"""
-
+        
+        load_balancer_id = load_balancer[lib_consts.LOADBALANCER_ID]
         f_name = constants.CREATE_LOADBALANCER_FLOW
         lb_create_flow = linear_flow.Flow(f_name)
         lb_create_flow.add(lifecycle_tasks.LoadBalancerIDToErrorOnRevertTask(
@@ -394,7 +395,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(database_tasks.MarkLBDeletedInDB(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(database_tasks.DecrementLoadBalancerQuota(
-            requires=constants.LOADBALANCER))
+            requires=constants.PROJECT_ID))
         if not deleteCompute:
             delete_LB_flow.add(vthunder_tasks.WriteMemory(
                 requires=a10constants.VTHUNDER))
@@ -714,6 +715,9 @@ class LoadBalancerFlows(object):
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG,
                       a10constants.DEVICE_CONFIG_DICT, constants.FLAVOR_DATA),
             provides=(a10constants.VTHUNDER_CONFIG, a10constants.USE_DEVICE_FLAVOR)))
+        lb_create_flow.add(a10_database_tasks.CreateRackVthunderEntry(
+            name='create_rack_vThunder_entry_in_database1',
+            requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG)))
         lb_create_flow.add(vthunder_tasks.HandleACOSPartitionChange(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG),
             provides=a10constants.VTHUNDER_CONFIG))
@@ -855,7 +859,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(database_tasks.MarkLBDeletedInDB(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(database_tasks.DecrementLoadBalancerQuota(
-            requires=constants.LOADBALANCER))
+            requires=constants.PROJECT_ID))
         delete_LB_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         delete_LB_flow.add(a10_database_tasks.SetThunderUpdatedAt(
@@ -1096,6 +1100,6 @@ class LoadBalancerFlows(object):
                 requires=constants.LOADBALANCER,
                 provides=constants.LOADBALANCER))
             pools_listeners_delete_flow.add(network_tasks.UpdateVIPForDelete(
-                requires=constants.LOADBALANCER))
+                requires=constants.LOADBALANCER_ID))
 
         return (pools_listeners_delete_flow, store)

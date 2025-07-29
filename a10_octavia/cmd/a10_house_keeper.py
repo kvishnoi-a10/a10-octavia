@@ -30,28 +30,28 @@ from octavia import version
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
-spare_amp_thread_event = threading.Event()
+#spare_amp_thread_event = threading.Event()
 db_cleanup_thread_event = threading.Event()
 write_memory_thread_event = threading.Event()
 stats_cleanup_thread_event = threading.Event()
 pending_resource_cleanup_thread_event = threading.Event()
 
 
-def spare_amphora_check():
-    """Initiates spare amp check with respect to configured interval."""
+# def spare_amphora_check():
+#     """Initiates spare amp check with respect to configured interval."""
 
-    # Read the interval from CONF
-    interval = CONF.a10_house_keeping.spare_check_interval
-    LOG.info("Spare check interval is set to %d sec", interval)
-    spare_amp = house_keeping.SpareAmphora()
-    while not spare_amp_thread_event.is_set():
-        LOG.debug("Initiating spare amphora check...")
-        try:
-            spare_amp.spare_check()
-        except Exception as e:
-            LOG.debug('spare_amphora caught the following exception and '
-                      'is restarting: {}'.format(e))
-        spare_amp_thread_event.wait(interval)
+#     # Read the interval from CONF
+#     interval = CONF.a10_house_keeping.spare_check_interval
+#     LOG.info("Spare check interval is set to %d sec", interval)
+#     spare_amp = house_keeping.SpareAmphora()
+#     while not spare_amp_thread_event.is_set():
+#         LOG.debug("Initiating spare amphora check...")
+#         try:
+#             spare_amp.spare_check()
+#         except Exception as e:
+#             LOG.debug('spare_amphora caught the following exception and '
+#                       'is restarting: {}'.format(e))
+#         spare_amp_thread_event.wait(interval)
 
 
 def db_cleanup():
@@ -136,22 +136,24 @@ def pending_resource_cleanup():
 
 
 def _mutate_config(*args, **kwargs):
-    LOG.info("Housekeeping recieved HUP signal, mutating config.")
+    LOG.info("Housekeeping received HUP signal, mutating config.")
     CONF.mutate_config_files()
 
 
 def main():
     service.prepare_service(sys.argv)
+    LOG.debug('Full set of CONF:')
+    CONF.log_opt_values(LOG, logging.DEBUG)
 
     gmr.TextGuruMeditation.setup_autorun(version)
 
     timestamp = datetime.utcnow()
     LOG.info("Starting house keeping at %s", str(timestamp))
 
-    # Thread to perform spare amphora check
-    spare_amp_thread = threading.Thread(target=spare_amphora_check)
-    spare_amp_thread.daemon = True
-    spare_amp_thread.start()
+    # # Thread to perform spare amphora check
+    # spare_amp_thread = threading.Thread(target=spare_amphora_check)
+    # spare_amp_thread.daemon = True
+    # spare_amp_thread.start()
 
     # Thread to perform db cleanup
     db_cleanup_thread = threading.Thread(target=db_cleanup)
@@ -181,12 +183,12 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         LOG.info("Attempting to gracefully terminate House-Keeping")
-        spare_amp_thread_event.set()
+        #spare_amp_thread_event.set()
         db_cleanup_thread_event.set()
         write_memory_thread_event.set()
         stats_cleanup_thread_event.set()
         pending_resource_cleanup_thread_event.set()
-        spare_amp_thread.join()
+        #spare_amp_thread.join()
         db_cleanup_thread.join()
         write_memory_thread.join()
         stats_cleanup_thread.join()

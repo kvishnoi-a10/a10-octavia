@@ -17,9 +17,9 @@ from oslo_config import cfg
 from taskflow.patterns import linear_flow
 
 from octavia.common import constants
-from octavia.controller.worker.v1.tasks import database_tasks
-from octavia.controller.worker.v1.tasks import lifecycle_tasks
-from octavia.controller.worker.v1.tasks import model_tasks
+from octavia.controller.worker.v2.tasks import database_tasks
+from octavia.controller.worker.v2.tasks import lifecycle_tasks
+# from octavia.controller.worker.v2.tasks import model_tasks
 
 from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.tasks import a10_database_tasks
@@ -42,7 +42,7 @@ class MemberFlows(object):
             requires=[constants.MEMBER,
                       constants.LISTENERS,
                       constants.LOADBALANCER,
-                      constants.POOL]))
+                      constants.POOL_ID]))
         create_member_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
 
@@ -156,7 +156,7 @@ class MemberFlows(object):
         create_member_flow.add(database_tasks.MarkMemberActiveInDB(
             requires=constants.MEMBER))
         create_member_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         create_member_flow.add(database_tasks.
                                MarkLBAndListenersActiveInDB(
                                    requires=(constants.LOADBALANCER,
@@ -224,15 +224,15 @@ class MemberFlows(object):
             requires=[constants.MEMBER,
                       constants.LISTENERS,
                       constants.LOADBALANCER,
-                      constants.POOL]))
+                      constants.POOL_ID]))
         delete_member_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
 
         delete_member_flow.add(database_tasks.MarkMemberPendingDeleteInDB(
             requires=constants.MEMBER))
-        delete_member_flow.add(model_tasks.
-                               DeleteModelObject(rebind={constants.OBJECT:
-                                                         constants.MEMBER}))
+        # delete_member_flow.add(model_tasks.
+        #                        DeleteModelObject(rebind={constants.OBJECT:
+        #                                                  constants.MEMBER}))
         delete_member_flow.add(database_tasks.GetAmphoraeFromLoadbalancer(
             requires=constants.LOADBALANCER_ID,
             provides=constants.AMPHORA))
@@ -355,7 +355,7 @@ class MemberFlows(object):
         delete_member_flow.add(database_tasks.DecrementMemberQuota(
             requires=constants.MEMBER))
         delete_member_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         delete_member_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
             requires=[constants.LOADBALANCER, constants.LISTENERS]))
         delete_member_flow.add(vthunder_tasks.WriteMemory(
@@ -374,12 +374,12 @@ class MemberFlows(object):
             requires=[constants.MEMBER,
                       constants.LISTENERS,
                       constants.LOADBALANCER,
-                      constants.POOL]))
+                      constants.POOL_ID]))
         delete_member_flow.add(database_tasks.MarkMemberPendingDeleteInDB(
             requires=constants.MEMBER))
-        delete_member_flow.add(model_tasks.
-                               DeleteModelObject(rebind={constants.OBJECT:
-                                                         constants.MEMBER}))
+        # delete_member_flow.add(model_tasks.
+        #                        DeleteModelObject(rebind={constants.OBJECT:
+        #                                                  constants.MEMBER}))
         delete_member_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))
@@ -451,7 +451,7 @@ class MemberFlows(object):
         delete_member_flow.add(database_tasks.DecrementMemberQuota(
             requires=constants.MEMBER))
         delete_member_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         delete_member_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
             requires=[constants.LOADBALANCER,
                       constants.LISTENERS]))
@@ -719,7 +719,7 @@ class MemberFlows(object):
             requires=[constants.MEMBER,
                       constants.LISTENERS,
                       constants.LOADBALANCER,
-                      constants.POOL]))
+                      constants.POOL_ID]))
         update_member_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
 
@@ -767,7 +767,7 @@ class MemberFlows(object):
         update_member_flow.add(database_tasks.MarkMemberActiveInDB(
             requires=constants.MEMBER))
         update_member_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         update_member_flow.add(database_tasks.
                                MarkLBAndListenersActiveInDB(
                                    requires=[constants.LOADBALANCER,
@@ -788,7 +788,7 @@ class MemberFlows(object):
             requires=[constants.MEMBER,
                       constants.LISTENERS,
                       constants.LOADBALANCER,
-                      constants.POOL]))
+                      constants.POOL_ID]))
         update_member_flow.add(database_tasks.MarkMemberPendingUpdateInDB(
             requires=constants.MEMBER))
         if CONF.a10_global.validate_subnet:
@@ -829,7 +829,7 @@ class MemberFlows(object):
         update_member_flow.add(database_tasks.MarkMemberActiveInDB(
             requires=constants.MEMBER))
         update_member_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         update_member_flow.add(database_tasks.
                                MarkLBAndListenersActiveInDB(
                                    requires=[constants.LOADBALANCER,
@@ -850,7 +850,7 @@ class MemberFlows(object):
             requires=[constants.MEMBER,
                       constants.LISTENERS,
                       constants.LOADBALANCER,
-                      constants.POOL]))
+                      constants.POOL_ID]))
         create_member_flow.add(database_tasks.MarkMemberPendingCreateInDB(
             requires=constants.MEMBER))
         if CONF.a10_global.validate_subnet:
@@ -888,7 +888,7 @@ class MemberFlows(object):
         create_member_flow.add(database_tasks.MarkMemberActiveInDB(
             requires=constants.MEMBER))
         create_member_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         create_member_flow.add(database_tasks.
                                MarkLBAndListenersActiveInDB(
                                    requires=(constants.LOADBALANCER,
@@ -1036,10 +1036,10 @@ class MemberFlows(object):
             batch_update_members_flow.add(database_tasks.MarkMemberPendingDeleteInDB(
                 inject={constants.MEMBER: m},
                 name='mark-member-pending-delete-in-db-' + m.id))
-            batch_update_members_flow.add(model_tasks.DeleteModelObject(
-                inject={constants.OBJECT: m},
-                name='{flow}-{id}'.format(
-                    id=m.id, flow=constants.DELETE_MODEL_OBJECT_FLOW)))
+            # batch_update_members_flow.add(model_tasks.DeleteModelObject(
+            #     inject={constants.OBJECT: m},
+            #     name='{flow}-{id}'.format(
+            #         id=m.id, flow=constants.DELETE_MODEL_OBJECT_FLOW)))
             batch_update_members_flow.add(a10_database_tasks.CountMembersWithIP(
                 name='count-member-with-ip-' + m.id,
                 inject={constants.MEMBER: m},
@@ -1163,7 +1163,7 @@ class MemberFlows(object):
                               a10constants.VTHUNDER]))
 
         batch_update_members_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         batch_update_members_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
             requires=(constants.LOADBALANCER,
                       constants.LISTENERS)))
@@ -1216,9 +1216,9 @@ class MemberFlows(object):
             batch_update_members_flow.add(database_tasks.MarkMemberPendingDeleteInDB(
                 name='Mark-pending-delete-in-DB' + m.id,
                 inject={constants.MEMBER: m}))
-            batch_update_members_flow.add(model_tasks.DeleteModelObject(
-                name='delete-model-object' + m.id,
-                inject={constants.OBJECT: m}))
+            # batch_update_members_flow.add(model_tasks.DeleteModelObject(
+            #     name='delete-model-object' + m.id,
+            #     inject={constants.OBJECT: m}))
             batch_update_members_flow.add(a10_database_tasks.CountMembersWithIP(
                 name='Count-members-with-ip' + m.id,
                 inject={constants.MEMBER: m},
@@ -1420,7 +1420,7 @@ class MemberFlows(object):
             batch_update_members_flow.add(self.get_batch_update_member_snat_pool_subflow(m))
 
         batch_update_members_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         batch_update_members_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
             requires=[constants.LOADBALANCER, constants.LISTENERS]))
         batch_update_members_flow.add(vthunder_tasks.WriteMemory(
