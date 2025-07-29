@@ -383,7 +383,7 @@ def get_loadbalancer_flavor(loadbalancer):
     flavor_repo = repo.FlavorRepository()
     flavor_profile_repo = repo.FlavorProfileRepository()
     flavor = {}
-    flavor_id = loadbalancer.flavor_id
+    flavor_id = loadbalancer.get(constants.FLAVOR_ID)
     if flavor_id:
         flavor = flavor_repo.get(db_apis.get_session(), id=flavor_id)
         if flavor and flavor.flavor_profile_id:

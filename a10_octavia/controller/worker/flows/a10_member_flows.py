@@ -159,7 +159,7 @@ class MemberFlows(object):
             requires=constants.POOL_ID))
         create_member_flow.add(database_tasks.
                                MarkLBAndListenersActiveInDB(
-                                   requires=(constants.LOADBALANCER,
+                                   requires=(constants.LOADBALANCER_ID,
                                              constants.LISTENERS)))
         create_member_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
@@ -353,11 +353,11 @@ class MemberFlows(object):
         delete_member_flow.add(database_tasks.DeleteMemberInDB(
             requires=constants.MEMBER))
         delete_member_flow.add(database_tasks.DecrementMemberQuota(
-            requires=constants.MEMBER))
+            requires=constants.PROJECT_ID))
         delete_member_flow.add(database_tasks.MarkPoolActiveInDB(
             requires=constants.POOL_ID))
         delete_member_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=[constants.LOADBALANCER, constants.LISTENERS]))
+            requires=[constants.LOADBALANCER_ID, constants.LISTENERS]))
         delete_member_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         delete_member_flow.add(a10_database_tasks.SetThunderUpdatedAt(
@@ -449,11 +449,11 @@ class MemberFlows(object):
         delete_member_flow.add(database_tasks.DeleteMemberInDB(
             requires=constants.MEMBER))
         delete_member_flow.add(database_tasks.DecrementMemberQuota(
-            requires=constants.MEMBER))
+            requires=constants.PROJECT_ID))
         delete_member_flow.add(database_tasks.MarkPoolActiveInDB(
             requires=constants.POOL_ID))
         delete_member_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=[constants.LOADBALANCER,
+            requires=[constants.LOADBALANCER_ID,
                       constants.LISTENERS]))
         delete_member_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
@@ -770,7 +770,7 @@ class MemberFlows(object):
             requires=constants.POOL_ID))
         update_member_flow.add(database_tasks.
                                MarkLBAndListenersActiveInDB(
-                                   requires=[constants.LOADBALANCER,
+                                   requires=[constants.LOADBALANCER_ID,
                                              constants.LISTENERS]))
         update_member_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
@@ -832,7 +832,7 @@ class MemberFlows(object):
             requires=constants.POOL_ID))
         update_member_flow.add(database_tasks.
                                MarkLBAndListenersActiveInDB(
-                                   requires=[constants.LOADBALANCER,
+                                   requires=[constants.LOADBALANCER_ID,
                                              constants.LISTENERS]))
         update_member_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
@@ -891,7 +891,7 @@ class MemberFlows(object):
             requires=constants.POOL_ID))
         create_member_flow.add(database_tasks.
                                MarkLBAndListenersActiveInDB(
-                                   requires=(constants.LOADBALANCER,
+                                   requires=(constants.LOADBALANCER_ID,
                                              constants.LISTENERS)))
         create_member_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
@@ -1085,6 +1085,7 @@ class MemberFlows(object):
                 name='{flow}-{id}'.format(
                     id=m.id, flow=constants.DELETE_MEMBER_INDB)))
             batch_update_members_flow.add(database_tasks.DecrementMemberQuota(
+                requires=constants.PROJECT_ID,
                 inject={constants.MEMBER: m},
                 name='{flow}-{id}'.format(
                     id=m.id, flow=constants.DECREMENT_MEMBER_QUOTA_FLOW)))
@@ -1165,7 +1166,7 @@ class MemberFlows(object):
         batch_update_members_flow.add(database_tasks.MarkPoolActiveInDB(
             requires=constants.POOL_ID))
         batch_update_members_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=(constants.LOADBALANCER,
+            requires=(constants.LOADBALANCER_ID,
                       constants.LISTENERS)))
         batch_update_members_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
@@ -1250,6 +1251,7 @@ class MemberFlows(object):
                 name='delete-member-in-db' + m.id,
                 inject={constants.MEMBER: m}))
             batch_update_members_flow.add(database_tasks.DecrementMemberQuota(
+                requires=constants.PROJECT_ID,
                 name='decrement-member-quota' + m.id,
                 inject={constants.MEMBER: m}))
         if CONF.a10_global.handle_vrid:
@@ -1422,7 +1424,7 @@ class MemberFlows(object):
         batch_update_members_flow.add(database_tasks.MarkPoolActiveInDB(
             requires=constants.POOL_ID))
         batch_update_members_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=[constants.LOADBALANCER, constants.LISTENERS]))
+            requires=[constants.LOADBALANCER_ID, constants.LISTENERS]))
         batch_update_members_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         batch_update_members_flow.add(a10_database_tasks.SetThunderUpdatedAt(

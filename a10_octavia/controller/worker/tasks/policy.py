@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from octavia.common import constants
 
 TYPE_DICT = {
     "HOST_NAME": "HTTP::host",
@@ -41,20 +42,21 @@ class PolicyUtil(object):
 
     def createPolicy(self, l7policy):
         actionString = ""
-        if l7policy.action == "REDIRECT_TO_POOL":
-            actionString = "pool " + l7policy.redirect_pool.id
+        if l7policy['action'] == "REDIRECT_TO_POOL":
+            actionString = "pool " + l7policy.get("redirect_pool_id", "")
 
-        elif l7policy.action == "REDIRECT_TO_URL":
-            actionString = "HTTP::redirect " + l7policy.redirect_url
+        elif l7policy['action'] == "REDIRECT_TO_URL":
+            actionString = "HTTP::redirect " + l7policy.get("redirect_url", "")
 
         else:
             actionString = "HTTP::close"
         ruleString = ""
-        if len(l7policy.l7rules) <= 0:
+        l7rules = l7policy.get("l7rules", [])
+        if len(l7rules) <= 0:
             ruleString = "( true )"
         else:
             ruleArray = []
-            for rule in l7policy.l7rules:
+            for rule in l7rules:
                 temp = self.ruleParser(rule)
                 ruleArray.append(temp)
             ruleString = " and ".join(ruleArray)

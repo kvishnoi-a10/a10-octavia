@@ -1122,40 +1122,40 @@ class TagInterfaceForMember(TagInterfaceBaseTask):
         member_list = member if isinstance(member, list) else [member]
         subnet_list = []
         for member in member_list:
-            if member.subnet_id not in subnet_list:
-                if not member.subnet_id:
+            if member[constants.SUBNET_ID] not in subnet_list:
+                if not member[constants.SUBNET_ID]:
                     LOG.warning("Subnet id argument was not specified during "
                                 "issuance of create command/API call for member %s. "
-                                "Skipping TagInterfaceForMember task", member.id)
+                                "Skipping TagInterfaceForMember task", member[constants.MEMBER_ID])
                     continue
                 try:
-                    vlan_id = self.get_vlan_id(member.subnet_id, False)
+                    vlan_id = self.get_vlan_id(member[constants.SUBNET_ID], False)
                     self.tag_interfaces(vthunder, vlan_id)
-                    subnet_list.append(member.subnet_id)
+                    subnet_list.append(member[constants.SUBNET_ID])
                     LOG.debug("Successfully tagged interface with VLAN id %s for member %s",
-                              str(vlan_id), member.id)
+                              str(vlan_id), member[constants.MEMBER_ID])
                 except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
                     LOG.exception("Failed to tag interface with VLAN id %s for member %s",
-                                  str(vlan_id), member.id)
+                                  str(vlan_id), member[constants.MEMBER_ID])
                     raise e
 
     @axapi_client_decorator_for_revert
     def revert(self, member, vthunder, *args, **kwargs):
         member_list = member if isinstance(member, list) else [member]
         for member in member_list:
-            if not member.subnet_id:
+            if not member[constants.SUBNET_ID]:
                 LOG.warning("Subnet id argument was not specified during "
                             "issuance of create command/API call for member %s. "
-                            "Skipping TagInterfaceForMember task", member.id)
+                            "Skipping TagInterfaceForMember task", member[constants.MEMBER_ID])
                 continue
             try:
                 if vthunder and vthunder.device_network_map:
-                    vlan_id = self.get_vlan_id(member.subnet_id, False)
+                    vlan_id = self.get_vlan_id(member[constants.SUBNET_ID], False)
                     if self.is_vlan_deletable():
                         LOG.warning("Reverting tag interface for member with VLAN id %s", vlan_id)
                         master_device_id = vthunder.device_network_map[0].vcs_device_id
                         for device_obj in vthunder.device_network_map:
-                            self.delete_device_vlan(vlan_id, member.subnet_id, vthunder,
+                            self.delete_device_vlan(vlan_id, member[constants.SUBNET_ID], vthunder,
                                                     device_id=device_obj.vcs_device_id,
                                                     master_device_id=master_device_id)
             except req_exceptions.ConnectionError:

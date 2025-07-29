@@ -121,12 +121,8 @@ class HealthMonitorFlows(object):
                       constants.LOADBALANCER]))
         delete_hm_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
-
         delete_hm_flow.add(database_tasks.MarkHealthMonitorPendingDeleteInDB(
             requires=constants.HEALTH_MON))
-        # delete_hm_flow.add(model_tasks.
-        #                    DeleteModelObject(rebind={constants.OBJECT:
-        #                                              constants.HEALTH_MON}))
         delete_hm_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))
@@ -145,7 +141,7 @@ class HealthMonitorFlows(object):
                 requires=constants.POOL_ID,
                 inject={constants.OPERATING_STATUS: constants.NO_MONITOR}))
         delete_hm_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         delete_hm_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
             requires=(constants.LOADBALANCER_ID, constants.LISTENERS)))
         delete_hm_flow.add(vthunder_tasks.WriteMemory(

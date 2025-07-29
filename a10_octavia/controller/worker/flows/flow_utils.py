@@ -120,6 +120,12 @@ def get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated
 def get_batch_update_members_flow(old_members, new_members, updated_members,topology):
     return M_FLOWS.get_batch_update_members_flow(old_members, new_members, updated_members,topology)
 
+def get_rack_vthunder_update_member_flow(vthunder_conf, device_dict):
+    return M_FLOWS.get_rack_vthunder_update_member_flow(vthunder_conf, device_dict)
+
+def get_update_member_flow(topology):
+    return M_FLOWS.get_update_member_flow(topology)
+
 def get_create_pool_flow(topology):
     return P_FLOWS.get_create_pool_flow(topology)
 

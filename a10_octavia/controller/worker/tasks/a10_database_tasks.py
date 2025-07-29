@@ -390,7 +390,7 @@ class GetVRIDForLoadbalancerResource(BaseDatabaseTask):
             if topology == "SINGLE":
                 owner = [vthunder.ip_address + "_" + vthunder.partition_name]
             else:
-                loadbalancer_id = loadbalancer.id
+                loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
                 with db_apis.session().begin() as session:
                     master_vthunder = self.vthunder_repo.get_vthunder_from_lb(
                         session, loadbalancer_id)
@@ -674,7 +674,7 @@ class CountMembersWithIP(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 return self.member_repo.get_member_count_by_ip_address(
-                    session, member.ip_address, member.project_id)
+                    session, member[constants.ADDRESS], member[constants.PROJECT_ID])
         except Exception as e:
             LOG.exception(
                 "Failed to get count of members with given IP for a pool: %s",
@@ -687,8 +687,8 @@ class CountMembersWithIPPortProtocol(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 return self.member_repo.get_member_count_by_ip_address_port_protocol(
-                    session, member.ip_address, member.project_id,
-                    member.protocol_port, pool.protocol)
+                    session, member[constants.ADDRESS], member[constants.PROJECT_ID],
+                    member.get('protocol_port'), pool[constants.PROTOCOL])
         except Exception as e:
             LOG.exception(
                 "Failed to get count of members with given IP fnd port for a pool: %s",
@@ -788,7 +788,7 @@ class GetFlavorData(BaseDatabaseTask):
         if flavor_id:
             with db_apis.session().begin() as session:
                 flavor = self.flavor_repo.get(session, id=flavor_id)
-                if not flavor and lb_resource.provisioning_status != "PENDING_DELETE":
+                if not flavor and lb_resource.get(constants.PROVISIONING_STATUS) != "PENDING_DELETE":
                     raise exceptions.FlavorNotFound(flavor_id)
                 if flavor and flavor.flavor_profile_id:
                     flavor_profile = self.flavor_profile_repo.get(
@@ -826,10 +826,10 @@ class GetNatPoolEntry(BaseDatabaseTask):
             try:
                 with db_apis.session().begin() as session:
                     return self.nat_pool_repo.get(session, name=nat_flavor['pool_name'],
-                                                subnet_id=member.subnet_id)
+                                                subnet_id=member[constants.SUBNET_ID])
             except Exception as e:
                 LOG.exception("Failed to fetch subnet %s NAT pool %s entry from database: %s",
-                              nat_flavor['pool_name'], member.subnet_id, str(e))
+                              nat_flavor['pool_name'], member[constants.SUBNET_ID], str(e))
                 raise e
 
 
@@ -848,7 +848,7 @@ class UpdateNatPoolDB(BaseDatabaseTask):
             try:
                 id = uuidutils.generate_uuid()
                 pool_name = nat_flavor.get('pool_name')
-                subnet_id = member.subnet_id
+                subnet_id = member[constants.SUBNET_ID]
                 start_address = nat_flavor.get('start_address')
                 end_address = nat_flavor.get('end_address')
                 port_id = subnet_port.id
@@ -1477,26 +1477,26 @@ class GetProxyProtocolPoolCount(BaseDatabaseTask):
 
     def execute(self, listener, pool):
         with db_apis.session().begin() as session:
-            if pool.protocol == constants.PROTOCOL_PROXY:
+            if pool[constants.PROTOCOL] == constants.PROTOCOL_PROXY:
                 use_aflex_proxy_count = 0
                 if a10_task_utils.proxy_protocol_use_aflex(listener, pool) is True:
                     use_aflex_proxy_count = self.pool_repo.get_aflex_proxy_count(
-                        session, pool.project_id)
+                        session, pool[constants.PROJECT_ID])
                     LOG.info("Proxy Protocol with aFlex Pools: %d", use_aflex_proxy_count)
                     return use_aflex_proxy_count
 
                 proxy_pool_count = self.pool_repo.get_proxy_pool_count(
-                    session, pool.project_id)
+                    session, pool[constants.PROJECT_ID])
                 use_aflex_proxy = CONF.service_group.use_aflex_proxy
                 if use_aflex_proxy and use_aflex_proxy is True:
                     use_aflex_proxy_count = self.pool_repo.get_aflex_proxy_count(
-                        session, pool.project_id)
+                        session, pool[constants.PROJECT_ID])
                 proxy_pool_count = proxy_pool_count - use_aflex_proxy_count
                 LOG.info("Proxy Protocol Pools: %d", proxy_pool_count)
                 return proxy_pool_count
-            elif pool.protocol == lib_consts.PROTOCOL_PROXYV2:
+            elif pool[constants.PROTOCOL] == lib_consts.PROTOCOL_PROXYV2:
                 proxy_pool_count = self.pool_repo.get_proxyv2_pool_count(
-                    session, pool.project_id)
+                    session, pool[constants.PROJECT_ID])
                 LOG.info("Proxy Protocol V2 Pools: %d", proxy_pool_count)
                 return proxy_pool_count
             return 0
