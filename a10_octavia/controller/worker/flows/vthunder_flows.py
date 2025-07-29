@@ -19,8 +19,8 @@ from taskflow.patterns import graph_flow
 from taskflow.patterns import linear_flow
 
 from octavia.common import constants
-from octavia.controller.worker.v2.tasks import compute_tasks as compute
-from octavia.controller.worker.v2.tasks import database_tasks
+from octavia.controller.worker.v1.tasks import compute_tasks as compute
+from octavia.controller.worker.v1.tasks import database_tasks
 
 from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.tasks import a10_compute_tasks as compute_tasks
@@ -119,7 +119,7 @@ class VThunderFlows(object):
             inject={a10constants.ROLE: role},
             provides=constants.AMPHORA_ID)
 
-        create_amp = self.get_create_amp_for_lb_subflow(prefix, role)
+        create_amp = self._get_create_amp_for_lb_subflow(prefix, role)
 
         map_lb_to_vthunder = self._get_vthunder_for_amphora_subflow(
             prefix, role)
@@ -139,7 +139,7 @@ class VThunderFlows(object):
 
         return amp_for_lb_flow
 
-    def get_create_amp_for_lb_subflow(self, prefix, role):
+    def _get_create_amp_for_lb_subflow(self, prefix, role):
         """Flow to create a new vThunder for lb."""
 
         sf_name = prefix + '-' + constants.CREATE_AMP_FOR_LB_SUBFLOW
@@ -225,7 +225,7 @@ class VThunderFlows(object):
                 requires=(constants.AMPHORA, constants.LOADBALANCER_ID)))
         create_amp_for_lb_subflow.add(database_tasks.ReloadAmphora(
             name=sf_name + '-' + constants.RELOAD_AMPHORA,
-            requires=constants.AMPHORA,
+            requires=constants.AMPHORA_ID,
             provides=constants.AMPHORA))
         if role == constants.ROLE_MASTER:
             create_amp_for_lb_subflow.add(database_tasks.MarkAmphoraMasterInDB(
@@ -364,7 +364,7 @@ class VThunderFlows(object):
                 requires=(constants.AMPHORA, constants.LOADBALANCER_ID)))
         vthunder_for_amphora_subflow.add(database_tasks.ReloadAmphora(
             name=sf_name + '-' + constants.RELOAD_AMPHORA,
-            requires=constants.AMPHORA,
+            requires=constants.AMPHORA_ID,
             provides=constants.AMPHORA))
         if role == constants.ROLE_MASTER:
             vthunder_for_amphora_subflow.add(database_tasks.MarkAmphoraMasterInDB(

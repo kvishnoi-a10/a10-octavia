@@ -52,8 +52,7 @@ class A10HealthManager(health_manager.HealthManager):
             vthunder = None
             lock_session = None
             try:
-                lock_session = db_apis.get_session()
-                lock_session.begin()
+                lock_session = db_apis.get_session(autocommit=False)
                 failover_wait_time = datetime.datetime.utcnow() - datetime.timedelta(
                     seconds=CONF.a10_health_manager.heartbeat_timeout)
                 initial_setup_wait_time = datetime.datetime.utcnow() - datetime.timedelta(
@@ -108,7 +107,7 @@ class A10HealthManager(health_manager.HealthManager):
                 break
 
             LOG.info("Stale vThunder's id is: %s", vthunder.vthunder_id)
-            fut = self.executor.submit(self.cw.failover_amphora, vthunder.vthunder_id, reraise=True)
+            fut = self.executor.submit(self.cw.failover_amphora, vthunder.vthunder_id)
             futs.append(fut)
             if len(futs) == self.threads:
                 break

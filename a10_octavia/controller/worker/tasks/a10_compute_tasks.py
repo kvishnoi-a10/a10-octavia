@@ -20,7 +20,7 @@ from taskflow.types import failure
 
 from octavia.common import constants
 from octavia.common import exceptions
-from octavia.controller.worker.v2.tasks.compute_tasks import BaseComputeTask
+from octavia.controller.worker.v1.tasks.compute_tasks import BaseComputeTask
 
 from a10_octavia.common import exceptions as a10_exception
 from a10_octavia.common import utils as a10_utils
@@ -90,7 +90,7 @@ class ComputeCreate(BaseComputeTask):
                 port_ids=[port.id for port in ports],
                 server_group_id=server_group_id)
 
-            LOG.info("Server created with id: %s for amphora id: %s",
+            LOG.debug("Server created with id: %s for amphora id: %s",
                       compute_id, amphora_id)
 
             return compute_id
@@ -116,23 +116,20 @@ class ComputeCreate(BaseComputeTask):
                           compute_id, str(e))
 
 
-# class ComputeActiveWait(BaseComputeTask):
-
-class ComputeWait(BaseComputeTask):
+class ComputeActiveWait(BaseComputeTask):
     """Wait for the compute driver to mark the amphora active."""
 
     def execute(self, compute_id, amphora_id):
         """Wait for the compute driver to mark the amphora active"""
-
-        #for i in range(CONF.a10_controller_worker.amp_active_retries):
-        amp, fault = self.compute.get_amphora(compute_id)
-        if amp.status == constants.ACTIVE:
-            if CONF.a10_controller_worker.build_rate_limit != -1:
-                self.rate_limit.remove_from_build_req_queue(amphora_id)
-            return amp
-        elif amp.status == constants.ERROR:
-            raise exceptions.ComputeBuildException(fault=fault)
-        time.sleep(CONF.a10_controller_worker.amp_active_wait_sec)
+        for i in range(CONF.a10_controller_worker.amp_active_retries):
+            amp, fault = self.compute.get_amphora(compute_id)
+            if amp.status == constants.ACTIVE:
+                if CONF.a10_controller_worker.build_rate_limit != -1:
+                    self.rate_limit.remove_from_build_req_queue(amphora_id)
+                return amp
+            elif amp.status == constants.ERROR:
+                raise exceptions.ComputeBuildException(fault=fault)
+            time.sleep(CONF.a10_controller_worker.amp_active_wait_sec)
 
         raise exceptions.ComputeWaitTimeoutException(id=compute_id)
 

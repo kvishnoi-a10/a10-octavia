@@ -15,9 +15,9 @@
 from taskflow.patterns import linear_flow
 
 from octavia.common import constants
-from octavia.controller.worker.v2.tasks import database_tasks
-from octavia.controller.worker.v2.tasks import lifecycle_tasks
-#from octavia.controller.worker.v1.tasks import model_tasks
+from octavia.controller.worker.v1.tasks import database_tasks
+from octavia.controller.worker.v1.tasks import lifecycle_tasks
+from octavia.controller.worker.v1.tasks import model_tasks
 
 from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.flows import a10_l7rule_flows
@@ -40,7 +40,7 @@ class L7PolicyFlows(object):
         create_l7policy_flow.add(lifecycle_tasks.L7PolicyToErrorOnRevertTask(
             requires=[constants.L7POLICY,
                       constants.LISTENERS,
-                      constants.LOADBALANCER_ID]))
+                      constants.LOADBALANCER]))
         create_l7policy_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
 
@@ -59,7 +59,7 @@ class L7PolicyFlows(object):
         create_l7policy_flow.add(database_tasks.MarkL7PolicyActiveInDB(
             requires=constants.L7POLICY))
         create_l7policy_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=(constants.LOADBALANCER_ID, constants.LISTENERS)))
+            requires=[constants.LOADBALANCER, constants.LISTENERS]))
         create_l7policy_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         create_l7policy_flow.add(a10_database_tasks.SetThunderUpdatedAt(
@@ -110,14 +110,14 @@ class L7PolicyFlows(object):
         delete_l7policy_flow.add(lifecycle_tasks.L7PolicyToErrorOnRevertTask(
             requires=[constants.L7POLICY,
                       constants.LISTENERS,
-                      constants.LOADBALANCER_ID]))
+                      constants.LOADBALANCER]))
         delete_l7policy_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
 
         delete_l7policy_flow.add(database_tasks.MarkL7PolicyPendingDeleteInDB(
             requires=constants.L7POLICY))
-        # delete_l7policy_flow.add(model_tasks.DeleteModelObject(
-        #     rebind={constants.OBJECT: constants.L7POLICY}))
+        delete_l7policy_flow.add(model_tasks.DeleteModelObject(
+            rebind={constants.OBJECT: constants.L7POLICY}))
         delete_l7policy_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))
@@ -131,7 +131,7 @@ class L7PolicyFlows(object):
         delete_l7policy_flow.add(database_tasks.DeleteL7PolicyInDB(
             requires=constants.L7POLICY))
         delete_l7policy_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=(constants.LOADBALANCER_ID, constants.LISTENERS)))
+            requires=[constants.LOADBALANCER, constants.LISTENERS]))
         delete_l7policy_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         delete_l7policy_flow.add(a10_database_tasks.SetThunderUpdatedAt(
@@ -146,7 +146,7 @@ class L7PolicyFlows(object):
         update_l7policy_flow.add(lifecycle_tasks.L7PolicyToErrorOnRevertTask(
             requires=[constants.L7POLICY,
                       constants.LISTENERS,
-                      constants.LOADBALANCER_ID]))
+                      constants.LOADBALANCER]))
         update_l7policy_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
 
@@ -173,7 +173,7 @@ class L7PolicyFlows(object):
         update_l7policy_flow.add(database_tasks.MarkL7PolicyActiveInDB(
             requires=constants.L7POLICY))
         update_l7policy_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=(constants.LOADBALANCER_ID, constants.LISTENERS)))
+            requires=[constants.LOADBALANCER, constants.LISTENERS]))
         update_l7policy_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         update_l7policy_flow.add(a10_database_tasks.SetThunderUpdatedAt(
@@ -182,9 +182,9 @@ class L7PolicyFlows(object):
 
     def get_cascade_delete_l7policy_internal_flow(self, l7policy_name):
         delete_l7policy_flow = linear_flow.Flow(constants.DELETE_L7POLICY_FLOW)
-        # delete_l7policy_flow.add(model_tasks.DeleteModelObject(
-        #     name='delete_model_object_' + l7policy_name,
-        #     rebind={constants.OBJECT: l7policy_name}))
+        delete_l7policy_flow.add(model_tasks.DeleteModelObject(
+            name='delete_model_object_' + l7policy_name,
+            rebind={constants.OBJECT: l7policy_name}))
         delete_l7policy_flow.add(l7policy_tasks.DeleteL7Policy(
             name='delete_l7policy_' + l7policy_name,
             requires=[constants.L7POLICY, a10constants.VTHUNDER],

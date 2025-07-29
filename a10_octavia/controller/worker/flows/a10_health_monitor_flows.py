@@ -16,9 +16,9 @@
 from taskflow.patterns import linear_flow
 
 from octavia.common import constants
-from octavia.controller.worker.v2.tasks import database_tasks
-from octavia.controller.worker.v2.tasks import lifecycle_tasks
-# from octavia.controller.worker.v1.tasks import model_tasks
+from octavia.controller.worker.v1.tasks import database_tasks
+from octavia.controller.worker.v1.tasks import lifecycle_tasks
+from octavia.controller.worker.v1.tasks import model_tasks
 
 from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.tasks import a10_database_tasks
@@ -60,9 +60,9 @@ class HealthMonitorFlows(object):
         create_hm_flow.add(database_tasks.MarkHealthMonitorActiveInDB(
             requires=constants.HEALTH_MON))
         create_hm_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL_ID))
+            requires=constants.POOL))
         create_hm_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=(constants.LOADBALANCER_ID, constants.LISTENERS)))
+            requires=[constants.LOADBALANCER, constants.LISTENERS]))
         create_hm_flow.add(vthunder_tasks.WriteMemory(
             name=a10constants.WRITE_MEM_FOR_LOCAL_PARTITION,
             requires=(a10constants.VTHUNDER)))
@@ -124,9 +124,9 @@ class HealthMonitorFlows(object):
 
         delete_hm_flow.add(database_tasks.MarkHealthMonitorPendingDeleteInDB(
             requires=constants.HEALTH_MON))
-        # delete_hm_flow.add(model_tasks.
-        #                    DeleteModelObject(rebind={constants.OBJECT:
-        #                                              constants.HEALTH_MON}))
+        delete_hm_flow.add(model_tasks.
+                           DeleteModelObject(rebind={constants.OBJECT:
+                                                     constants.HEALTH_MON}))
         delete_hm_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))
@@ -139,15 +139,15 @@ class HealthMonitorFlows(object):
         delete_hm_flow.add(database_tasks.DeleteHealthMonitorInDB(
             requires=constants.HEALTH_MON))
         delete_hm_flow.add(database_tasks.DecrementHealthMonitorQuota(
-            requires=constants.PROJECT_ID))
+            requires=constants.HEALTH_MON))
         delete_hm_flow.add(
             database_tasks.UpdatePoolMembersOperatingStatusInDB(
-                requires=constants.POOL_ID,
+                requires=constants.POOL,
                 inject={constants.OPERATING_STATUS: constants.NO_MONITOR}))
         delete_hm_flow.add(database_tasks.MarkPoolActiveInDB(
             requires=constants.POOL))
         delete_hm_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=(constants.LOADBALANCER_ID, constants.LISTENERS)))
+            requires=[constants.LOADBALANCER, constants.LISTENERS]))
         delete_hm_flow.add(vthunder_tasks.WriteMemory(
             name=a10constants.WRITE_MEM_FOR_LOCAL_PARTITION,
             requires=(a10constants.VTHUNDER)))
@@ -202,9 +202,9 @@ class HealthMonitorFlows(object):
         update_hm_flow.add(database_tasks.MarkHealthMonitorActiveInDB(
             requires=constants.HEALTH_MON))
         update_hm_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL_ID))
+            requires=constants.POOL))
         update_hm_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
-            requires=(constants.LOADBALANCER_ID, constants.LISTENERS)))
+            requires=[constants.LOADBALANCER, constants.LISTENERS]))
         update_hm_flow.add(vthunder_tasks.WriteMemory(
             name=a10constants.WRITE_MEM_FOR_LOCAL_PARTITION,
             requires=(a10constants.VTHUNDER)))

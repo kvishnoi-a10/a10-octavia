@@ -12,9 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from openstack.connection import Connection
-import openstack.exceptions as os_exceptions
-from openstack.network.v2._proxy import Proxy
+from neutronclient.common import exceptions as neutron_client_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
 from stevedore import driver as stevedore_driver
@@ -80,7 +78,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         payload = {"trunk": {"port_id": parent_port_id,
                              "admin_state_up": "true"}}
         try:
-            new_trunk = self.network_proxy.create_trunk(payload)
+            new_trunk = self.neutron_client.create_trunk(payload)
         except Exception:
             message = "Error creating trunk on port "
             "{port_id}".format(
@@ -92,7 +90,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
     def deallocate_trunk(self, trunk_id):
         try:
-            self.network_proxy.delete_trunk(trunk_id)
+            self.neutron_client.delete_trunk(trunk_id)
         except Exception:
             message = 'Trunk {0} already deleted.Skipping'.format(trunk_id)
             LOG.exception(message)
@@ -108,7 +106,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         payload = self._build_subport_payload(subports)
         updated_trunk = None
         try:
-            updated_trunk = self.network_proxy.trunk_add_subports(trunk_id, payload)
+            updated_trunk = self.neutron_client.trunk_add_subports(trunk_id, payload)
         except Exception:
             message = "Error adding subports"
             LOG.exception(message)
@@ -119,21 +117,20 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         payload = self._build_subport_payload(subports)
 
         try:
-            self.network_proxy.trunk_remove_subports(trunk_id, payload)
+            self.neutron_client.trunk_remove_subports(trunk_id, payload)
         except Exception:
             message = "Error deleting subports"
             LOG.exception(message)
 
     def _add_security_group_to_port(self, sec_grp_id, port_id):
-        # port = self.network_proxy.show_port(port_id)
-        # port['port']['security_groups'].append(sec_grp_id)
-        # sec_grp_list = port['port']['security_groups']
-        # payload = {'port': {'security_groups': sec_grp_list}}
+        port = self.neutron_client.show_port(port_id)
+        port['port']['security_groups'].append(sec_grp_id)
+        sec_grp_list = port['port']['security_groups']
+        payload = {'port': {'security_groups': sec_grp_list}}
         # Note: Neutron accepts the SG even if it already exists
         try:
-            self.network_proxy.update_port(
-                port_id, security_groups=[sec_grp_id])
-        except os_exceptions.NotFoundException as e:
+            self.neutron_client.update_port(port_id, payload)
+        except neutron_client_exceptions.PortNotFoundClient as e:
             raise base.PortNotFound(str(e))
         except Exception as e:
             raise base.NetworkException(str(e))
@@ -142,17 +139,17 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         port['security_groups'].remove(sec_grp_id)
         payload = {'port': {'security_groups': port['security_groups']}}
         try:
-            self.network_proxy.update_port(port['id'], payload)
-        except os_exceptions.NotFoundException as e:
+            self.neutron_client.update_port(port['id'], payload)
+        except neutron_client_exceptions.PortNotFoundClient as e:
             raise base.PortNotFound(str(e))
         except Exception as e:
             raise base.NetworkException(str(e))
 
     def _cleanup_port(self, vip_port_id, port):
         try:
-            self.network_proxy.delete_port(port['id'])
-        except (os_exceptions.ResourceNotFound,
-                os_exceptions.NotFoundException):
+            self.neutron_client.delete_port(port['id'])
+        except (neutron_client_exceptions.NotFound,
+                neutron_client_exceptions.PortNotFoundClient):
             if port['id'] == vip_port_id:
                 LOG.debug('VIP port %s already deleted. Skipping.', port['id'])
             else:
@@ -166,7 +163,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
             raise base.DeallocateVIPException(message)
 
     def _get_instance_ports_by_subnet(self, compute_id, subnet_id):
-        amp_ports = self.network_proxy.ports(device_id=compute_id)
+        amp_ports = self.neutron_client.list_ports(device_id=compute_id)
 
         filtered_ports = []
         for port in amp_ports.get('ports', []):
@@ -177,10 +174,11 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         return filtered_ports
 
     def _get_ports_by_security_group(self, sec_grp_id):
-        all_ports = self.network_proxy.ports()
-        filtered_ports = [
-            p for p in all_ports if (p.security_group_ids and
-                                     sec_grp_id in p.security_group_ids)]
+        all_ports = self.neutron_client.list_ports()
+        filtered_ports = []
+        for port in all_ports.get('ports', []):
+            if sec_grp_id in port.get('security_groups', []):
+                filtered_ports.append(port)
         return filtered_ports
 
     def deallocate_vip(self, loadbalancer, lb_count_subnet):
@@ -201,7 +199,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 ports = self._get_ports_by_security_group(sec_grp['id'])
 
         if not self.sec_grp_enabled or not ports:
-            ports.append(self.network_proxy.show_port(vip_port_id))
+            ports.append(self.neutron_client.show_port(vip_port_id))
             for amphora in loadbalancer.amphorae:
                 ports.extend(self._get_instance_ports_by_subnet(
                     amphora.compute_id, loadbalancer.vip.subnet_id))
@@ -236,7 +234,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
     def get_plugged_parent_port(self, vip):
         parent_port = None
         try:
-            port = self.network_proxy.show_port(vip.port_id)
+            port = self.neutron_client.show_port(vip.port_id)
             parent_port = self._port_to_parent_port(port.get("port"))
         except Exception:
             LOG.debug('Couldn\'t retrieve port with id: {}'.format(vip.port_id))
@@ -255,7 +253,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                              'fixed_ips': [{'subnet_id': subnet_id}]}}
             if fixed_ip:
                 port['port']['fixed_ips'][0]['ip_address'] = fixed_ip
-            new_port = self.network_proxy.create_port(port)
+            new_port = self.neutron_client.create_port(port)
         except Exception:
             message = "Error creating port in network: {0}".format(network_id)
             LOG.exception(message)
@@ -264,8 +262,8 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
     def delete_port(self, port_id):
         try:
-            self.network_proxy.delete_port(port_id)
-        except os_exceptions.NotFoundException:
+            self.neutron_client.delete_port(port_id)
+        except neutron_client_exceptions.PortNotFoundClient:
             pass
         except Exception:
             message = "Error deleting port: {0}".format(port_id)
@@ -282,7 +280,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
             for addr in addr_list:
                 fixed_ip = {'subnet_id': subnet_id, 'ip_address': addr}
                 port['port']['fixed_ips'].append(fixed_ip)
-            new_port = self.network_proxy.create_port(port)
+            new_port = self.neutron_client.create_port(port)
             new_port = utils.convert_port_dict_to_model(new_port)
             if amphorae is not None:
                 for amphora in filter(
@@ -312,7 +310,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
     def get_port_id_from_ip(self, ip):
         try:
-            ports = self.network_proxy.ports(device_owner=a10constants.OCTAVIA_OWNER)
+            ports = self.neutron_client.list_ports(device_owner=a10constants.OCTAVIA_OWNER)
             if not ports or not ports.get('ports'):
                 return None
             for port in ports['ports']:
@@ -321,8 +319,8 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                     for ipaddr in fixed_ips:
                         if ipaddr.get('ip_address') == ip:
                             return port['id']
-        except (os_exceptions.ResourceNotFound,
-                os_exceptions.NotFoundException):
+        except (neutron_client_exceptions.NotFound,
+                neutron_client_exceptions.PortNotFoundClient):
             pass
         except Exception:
             message = _('Error listing ports, ip {} ').format(ip)
@@ -331,7 +329,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         return None
 
     def list_networks(self):
-        network_list = self.network_proxy.list_networks()
+        network_list = self.neutron_client.list_networks()
         network_list_datamodel = []
 
         for network in network_list.get('networks'):
@@ -348,21 +346,20 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 router_external=network.get('router:external')))
         return network_list_datamodel
 
-    def _add_allowed_address_pairs_to_port(self, port_id, ip_address_list):
-        port = self.network_proxy.show_port(port_id)
+    def _add_allowed_address_pair_to_port(self, port_id, ip_address):
+        port = self.neutron_client.show_port(port_id)
         aap_ips = port['port']['allowed_address_pairs']
-        if isinstance(ip_address_list, list):
-            for ip in ip_address_list:
+        if isinstance(ip_address, list):
+            for ip in ip_address:
                 aap_ips.append({'ip_address': ip})
         else:
-            aap_ips.append({'ip_address': ip_address_list})
+            aap_ips.append({'ip_address': ip_address})
         aap = {
             'port': {
                 'allowed_address_pairs': aap_ips
             }
         }
-        self.network_proxy.update_port(port_id,
-                                       allowed_address_pairs=aap)
+        self.neutron_client.update_port(port_id, aap)
 
     def allocate_vrid_fip(self, vrid, network_id, amphorae, fixed_ip=None):
 
@@ -389,7 +386,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
             port['port']['fixed_ips'] = [fixed_ip_json]
 
         try:
-            new_port = self.network_proxy.create_port(port)
+            new_port = self.neutron_client.create_port(port)
         except Exception as e:
             message = _('Error creating neutron port on network '
                         '{network_id}.').format(
@@ -416,7 +413,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         interface = self._get_plugged_interface(
             amphora.compute_id, network_id, amphora.lb_network_ip)
         if interface:
-            port = self.network_proxy.show_port(interface.port_id)
+            port = self.neutron_client.show_port(interface.port_id)
             aap_ips = port['port']['allowed_address_pairs']
             for aap_ip in aap_ips:
                 if aap_ip['ip_address'] == '0.0.0.0/0':
@@ -434,8 +431,8 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
     def _remove_allowed_address_pair_from_port(self, port_id, ip_address):
         try:
-            port = self.network_proxy.show_port(port_id)
-        except os_exceptions.NotFoundException:
+            port = self.neutron_client.show_port(port_id)
+        except neutron_client_exceptions.PortNotFoundClient:
             LOG.warning("Can't deallocate AAP from instance port {0} because it "
                         "cannot be found in neutron. "
                         "Continuing cleanup.".format(port_id))
@@ -455,7 +452,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                     'allowed_address_pairs': updated_aap_ips,
                 }
             }
-            self.network_proxy.update_port(port_id, aap)
+            self.neutron_client.update_port(port_id, aap)
 
     def deallocate_vrid_fip(self, vrid, subnet, amphorae):
         self.delete_port(vrid.vrid_port_id)
@@ -506,9 +503,9 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         try:
             port = self.get_port(amphora.vrrp_port_id)
             if port.name.startswith('octavia-lb-vrrp-'):
-                self.network_proxy.delete_port(amphora.vrrp_port_id)
-        except (os_exceptions.ResourceNotFound,
-                os_exceptions.NotFoundException):
+                self.neutron_client.delete_port(amphora.vrrp_port_id)
+        except (neutron_client_exceptions.NotFound,
+                neutron_client_exceptions.PortNotFoundClient):
             pass
         except Exception as e:
             LOG.error('Failed to delete port.  Resources may still be in '
@@ -517,7 +514,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
     def show_subnet_detailed(self, subnet_id):
         try:
-            subnet = self.network_proxy.show_subnet(subnet_id)
+            subnet = self.neutron_client.show_subnet(subnet_id)
             return subnet
         except Exception as e:
             LOG.exception(str(e))

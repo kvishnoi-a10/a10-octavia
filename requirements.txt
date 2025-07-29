@@ -1,5 +1,5 @@
 acos-client>=2.10.0		#
-octavia>=7.0.0,<=14.0.2.dev2	# victoria version of octavia
+octavia>=7.0.0,<=10.0.0	# victoria version of octavia
 octavia-lib			    #
 keystone==18.0.0
 python-barbicanclient>=4.5.2 	# copied from octavia requirements.txt

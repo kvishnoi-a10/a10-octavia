@@ -19,7 +19,7 @@ from taskflow import task
 
 import acos_client.errors as acos_errors
 
-from octavia.controller.worker.v2.tasks import lifecycle_tasks
+from octavia.controller.worker.v1.tasks import lifecycle_tasks
 
 from a10_octavia.common import openstack_mappings
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator
@@ -262,6 +262,6 @@ class MemberToErrorOnRevertTask(lifecycle_tasks.BaseLifecycleTask):
 
     def revert(self, member, *args, **kwargs):
         try:
-            self.task_utils.mark_member_prov_status_error(member[constants.MEMBER_ID])
+            self.task_utils.mark_member_prov_status_error(member.id)
         except Exception as e:
             LOG.exception("Failed to change status due to: %s", e)

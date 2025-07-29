@@ -17,7 +17,7 @@ from oslo_log import log as logging
 from requests import exceptions
 from taskflow import task
 
-from octavia.controller.worker.v2.tasks import lifecycle_tasks
+from octavia.controller.worker.v1.tasks import lifecycle_tasks
 
 from a10_octavia.common import openstack_mappings
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator
@@ -182,6 +182,6 @@ class L7PolicyToErrorOnRevertTask(lifecycle_tasks.BaseLifecycleTask):
 
     def revert(self, l7policy, *args, **kwargs):
         try:
-            self.task_utils.mark_l7policy_prov_status_error(l7policy[constants.L7POLICY_ID])
+            self.task_utils.mark_l7policy_prov_status_error(l7policy.id)
         except Exception as e:
             LOG.exception("Failed to change status due to: %s", e)
