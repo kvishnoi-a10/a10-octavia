@@ -652,14 +652,14 @@ class A10ControllerWorker(object):
             if (member[constants.PROJECT_ID] in parent_project_list or
                     (member_parent_proj and member_parent_proj in parent_project_list)
                     or self._is_rack_flow(member[constants.PROJECT_ID], loadbalancer=load_balancer)):
-                vthunder_conf = CONF.hardware_thunder.devices.get(load_balancer.project_id, None)
+                vthunder_conf = CONF.hardware_thunder.devices.get(provider_lb[constants.PROJECT_ID], None)
                 device_dict = CONF.hardware_thunder.devices
                 store={constants.MEMBER: member,
                         constants.LISTENERS: listeners_dicts,
                         constants.LOADBALANCER: provider_lb,
                         constants.LOADBALANCER_ID: provider_lb[constants.LOADBALANCER_ID],
                         constants.POOL_ID: pool.id,
-                        constants.POOL: pool}
+                        constants.POOL: pool.to_dict(recurse=True)}
                 create_member_tf = self.run_flow(flow_utils.get_rack_vthunder_create_member_flow,
                                                 vthunder_conf=vthunder_conf, device_dict=device_dict,
                                                 store= store)
@@ -669,7 +669,7 @@ class A10ControllerWorker(object):
                         constants.LISTENERS:listeners_dicts,
                         constants.LOADBALANCER:load_balancer,
                         a10constants.COMPUTE_BUSY: busy,
-                        constants.POOL: pool,
+                        constants.POOL: pool.to_dict(recurse=True),
                         a10constants.VTHUNDER_CONFIG: None,
                         a10constants.USE_DEVICE_FLAVOR: False,
                         constants.LOADBALANCER_ID: load_balancer.id}
@@ -739,27 +739,27 @@ class A10ControllerWorker(object):
         finally:
             self._set_vthunder_available(provider_lb[constants.PROJECT_ID], True, ctx_flags, load_balancer)
 
-    def _is_batch_valid(self, old_member_ids, new_member_ids,
-                        updated_member_ids, member_collision_map):
+    def _is_batch_valid(self, old_member_ids, new_member_ids, updated_member_ids, member_collision_map):
         valid = True
         for mem_id, member_col in member_collision_map.items():
             member, mem_cnt = member_col
-            mem_ip = member.ip_address
-            mem_port = member.protocol_port
+            mem_ip = member.get(constants.ADDRESS) or member.get('ip_address')
+            mem_port = member.get('protocol_port')
+
             if mem_cnt > 1:
                 if mem_id in old_member_ids:
-                    error_msg = ("Duplicate members with id {} and IP {} and port {} "
-                                "found in member database.".format(mem_id, mem_ip, mem_port))
-                if mem_id in new_member_ids or mem_id in updated_member_ids:
-                    error_msg = ("Duplicate members with id {} and IP {} and port {} "
-                                "found in batch update request.".format(mem_id, mem_ip, mem_port))
+                    error_msg = f"Duplicate members with id {mem_id} and IP {mem_ip} and port {mem_port} found in member database."
+                elif mem_id in new_member_ids or mem_id in updated_member_ids:
+                    error_msg = f"Duplicate members with id {mem_id} and IP {mem_ip} and port {mem_port} found in batch update request."
+                else:
+                    error_msg = f"Duplicate members with unknown id and IP {mem_ip} and port {mem_port} found."
                 LOG.warning(error_msg)
                 valid = False
         return valid
-
+    
     def _rollback_members(self, old_member_ids, new_member_ids,
-                        updated_member_ids, load_balancer,
-                        listeners, pool):
+                          updated_member_ids, load_balancer,
+                          listeners, pool):
         set_o_ids = set(old_member_ids)
         set_u_ids = set(updated_member_ids)
         set_n_ids = set(new_member_ids)
@@ -767,38 +767,38 @@ class A10ControllerWorker(object):
         current_member_ids = set_o_ids.union(set_u_ids)
 
         current_members = [self._member_repo.get(db_apis.get_session(), id=mid)
-                        for mid in current_member_ids]
+                           for mid in current_member_ids]
 
         for mem in current_members:
             # Rollback status to prevent pending state lock
             self._member_repo.update(db_apis.get_session(), mem.id,
-                                    provisioning_status=constants.ACTIVE)
+                                     provisioning_status=constants.ACTIVE)
             LOG.info("Member with id {} and ip {} and port {} slated for "
-                    "batch update have been set to ACTIVE state.".format(
-                        mem.id, mem.ip_address, mem.protocol_port))
+                     "batch update have been set to ACTIVE state.".format(
+                         mem.id, mem.ip_address, mem.protocol_port))
 
         new_members = [self._member_repo.get(db_apis.get_session(), id=mid)
-                    for mid in set_n_ids]
+                       for mid in set_n_ids]
 
         for mem in new_members:
             current_member_ids.add(mem.id)
             LOG.info("Member with id {} and ip {} and port {} "
-                    "slated for creation under batch update "
-                    "has been deleted.".format(mem.id, mem.ip_address, mem.protocol_port))
+                     "slated for creation under batch update "
+                     "has been deleted.".format(mem[constants.MEMBER_ID], mem[constants.ADDRESS], mem.get('protocol_port')))
         self._member_repo.delete_members(db_apis.get_session(), set_n_ids)
 
         if pool is not None:
             self._pool_repo.update(db_apis.get_session(), pool.id,
-                                provisioning_status=constants.ACTIVE)
+                                   provisioning_status=constants.ACTIVE)
         if listeners is not None:
             for listener in listeners:
                 self._listener_repo.update(db_apis.get_session(),
-                                        listener.id,
-                                        provisioning_status=constants.ACTIVE)
+                                           listener.get(constants.LISTENER_ID),
+                                           provisioning_status=constants.ACTIVE)
         if load_balancer is not None:
             self._lb_repo.update(db_apis.get_session(),
-                                load_balancer.id,
-                                provisioning_status=constants.ACTIVE)
+                                 load_balancer[constants.LOADBALANCER_ID],
+                                 provisioning_status=constants.ACTIVE)
 
     @tenacity.retry(
         retry=tenacity.retry_if_exception_type(db_exceptions.NoResultFound),
@@ -806,30 +806,27 @@ class A10ControllerWorker(object):
             RETRY_INITIAL_DELAY, RETRY_BACKOFF, RETRY_MAX),
         stop=tenacity.stop_after_attempt(RETRY_ATTEMPTS))
     def batch_update_members(self, old_members, new_members,updated_members_req):
-
+        old_member_ids = [m.get(constants.ID) for m in old_members]
+        new_member_ids = [m.get(constants.MEMBER_ID) or m.get(constants.ID) for m in new_members]
+        updated_member_ids = [m.get(constants.ID) for m in updated_members_req]
         session = db_apis.get_session()
+        
         with session.begin():
-            db_new_members = [
-                self._member_repo.get(
-                    session, id=member[constants.MEMBER_ID])
-                for member in new_members]
-        # The API may not have committed all of the new member records yet.
-        # Make sure we retry looking them up.
+            db_new_members = [self._member_repo.get(session, id=member[constants.MEMBER_ID]).to_dict()
+                            for member in new_members]   
         if None in db_new_members or len(db_new_members) != len(new_members):
             LOG.warning('Failed to fetch one of the new members from DB. '
                         'Retrying for up to 60 seconds.')
             raise db_exceptions.NoResultFound
-
+        
         with session.begin():
-            updated_members = [
-                (provider_utils.db_member_to_provider_member(
-                    self._member_repo.get(session,
-                                        id=m.get(constants.ID))).to_dict(),m)
-                for m in updated_members]
+            updated_member_models = [
+                provider_utils.db_member_to_provider_member(
+                    self._member_repo.get(session,id=m.get(constants.ID))).to_dict()
+                for m in updated_members_req]
             provider_old_members = [
                 provider_utils.db_member_to_provider_member(
-                    self._member_repo.get(session,
-                                        id=m.get(constants.ID))).to_dict()
+                    self._member_repo.get(session,id=m.get(constants.ID))).to_dict()
                 for m in old_members]
             if old_members:
                 pool = self._pool_repo.get(
@@ -840,78 +837,77 @@ class A10ControllerWorker(object):
             else:
                 pool = self._pool_repo.get(
                     session,
-                    id=updated_members[0][0][constants.POOL_ID])
-        load_balancer = pool.load_balancer
+                    id=updated_member_models[0][0][constants.POOL_ID])
 
+        load_balancer = pool.load_balancer
         provider_lb = provider_utils.db_loadbalancer_to_provider_loadbalancer(
             load_balancer).to_dict(recurse=True)
         listeners_dicts = provider_lb.get('listeners', [])
 
-
-        modified_members = old_members + updated_member_models + new_members
+        modified_members = provider_old_members + updated_member_models + db_new_members
         member_collision_map = {}
+
         for mem in modified_members:
-            mem_id = mem[0] if type(mem) == tuple else mem.id
-            if member_collision_map.get(mem_id):
+            if isinstance(mem, tuple):
+                member_data, mem_id = mem
+            else:
+                member_data = mem
+                mem_id = member_data.get(constants.ID) or member_data.get(constants.MEMBER_ID)
+            if not mem_id:
+                mem_id = None
+            if mem_id in member_collision_map:
                 member_collision_map[mem_id][1] += 1
             else:
-                member_collision_map[mem_id] = [mem, 1]
+                member_collision_map[mem_id] = [member_data, 1]
 
         if not self._is_batch_valid(old_member_ids, new_member_ids,
                                     updated_member_ids, member_collision_map):
             self._rollback_members(old_member_ids, new_member_ids,
-                                updated_member_ids, load_balancer,
-                                listeners, pool)
+                                   updated_member_ids, load_balancer,
+                                   listeners_dicts, pool)
             LOG.warning("Due to a failed batch update caused by duplicate member definitions, "
                         "the members defined in the update are now out-of-sync with the "
                         "ACOS device. Please issue a corrected update or "
                         "delete the affected members.")
             raise a10_ex.DuplicateMembersInBatchUpdate
-
-        # The API may not have commited all of the new member records yet.
-        # Make sure we retry looking them up.
-        if None in new_members or len(new_members) != len(new_member_ids):
-            LOG.warning('Failed to fetch one of the new members from DB. '
-                        'Retrying for up to 60 seconds.')
-            raise db_exceptions.NoResultFound
-
+        
         updated_members = []
-        for i in range(len(updated_members_req)):
+        for i in range(len(updated_member_ids)):
             updated_members.append((updated_member_models[i], updated_members_req[i]))
-
+    
+        store={constants.LISTENERS: listeners_dicts,
+                constants.PROJECT_ID: provider_lb[constants.PROJECT_ID],
+                constants.LOADBALANCER: provider_lb,
+                constants.LOADBALANCER_ID: provider_lb[constants.LOADBALANCER_ID],
+                constants.POOL_ID : pool.id,
+                constants.POOL: pool.to_dict()}   
+        
         ctx_flags = [False]
         try:
-            if self._is_rack_flow(pool.project_id, loadbalancer=load_balancer):
-                vthunder_conf = CONF.hardware_thunder.devices.get(load_balancer.project_id, None)
+            if self._is_rack_flow(provider_lb[constants.PROJECT_ID], loadbalancer=provider_lb):
+                vthunder_conf = CONF.hardware_thunder.devices.get(provider_lb[constants.PROJECT_ID], None)
                 device_dict = CONF.hardware_thunder.devices
-                store={constants.LISTENERS: listeners,
-                           constants.LOADBALANCER: load_balancer,
-                           constants.POOL: pool}
                 batch_update_members_tf = self.run_flow(flow_utils.get_rack_vthunder_batch_update_members_flow,
-                                                    old_members,new_members,updated_members,vthunder_conf,
-                                                    device_dict, store= store )
+                                                    provider_old_members,new_members,updated_members,
+                                                    vthunder_conf,device_dict,store=store)
             else:
                 topology = CONF.a10_controller_worker.loadbalancer_topology
-                busy = self._vthunder_busy_check(load_balancer.project_id, True,
-                                                 ctx_flags, load_balancer)
-                store={constants.LISTENERS: listeners,
-                           constants.LOADBALANCER: load_balancer,
-                           a10constants.COMPUTE_BUSY: busy,
-                           constants.POOL: pool,
-                           constants.LOADBALANCER_ID: load_balancer.id,
-                           a10constants.VTHUNDER_CONFIG: None,
-                           a10constants.USE_DEVICE_FLAVOR: False,
-                           a10constants.LB_COUNT_THUNDER: None,
-                           a10constants.MEMBER_COUNT_THUNDER: None}
+                busy = self._vthunder_busy_check(provider_lb[constants.PROJECT_ID], True,
+                                                 ctx_flags, provider_lb)
+                store.update({a10constants.COMPUTE_BUSY: busy,
+                              a10constants.VTHUNDER_CONFIG: None,
+                              a10constants.USE_DEVICE_FLAVOR: False,
+                              a10constants.LB_COUNT_THUNDER: None,
+                              a10constants.MEMBER_COUNT_THUNDER: None})
                 batch_update_members_tf = self.run_flow(flow_utils.get_batch_update_members_flow,
-                                                    old_members, new_members, updated_members, topology,
-                                                    store=store)
+                                                    provider_old_members,new_members,updated_member_ids)
                 self._register_flow_notify_handler(batch_update_members_tf,
-                                                   load_balancer.project_id, True,
-                                                   busy, ctx_flags, load_balancer)
+                                                   provider_lb[constants.PROJECT_ID], True,
+                                                   busy, ctx_flags, provider_lb)
+            
             batch_update_members_tf.run()
         finally:
-            self._set_vthunder_available(pool.project_id, True, ctx_flags, load_balancer)
+            self._set_vthunder_available(provider_lb[constants.PROJECT_ID], True, ctx_flags, provider_lb)
 
     def update_member(self, member, member_updates):
         """Updates a pool member.

@@ -183,7 +183,7 @@ class A10ProviderDriver(driver_base.ProviderDriver):
         with session.begin():
             db_pool = self.repositories.pool.get(session, id=pool_id)
 
-        old_members = pool.members
+        old_members = db_pool.members
 
         old_member_ids = [m.id for m in old_members]
         # The driver will always pass objects with IDs.

@@ -82,10 +82,10 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         for loadbalancer in loadbalancers_list:
             for pool in db_lb.pools:
                 for member in pool.members:
-                    if member.subnet_id and member in member_list:
+                    if member[constants.SUBNET_ID] and member in member_list:
                         member_network = self.network_driver.get_subnet(
-                            member.subnet_id).network_id
-                        desired_subnet_to_net_map[member.subnet_id] = (
+                            member[constants.SUBNET_ID]).network_id
+                        desired_subnet_to_net_map[member[constants.SUBNET_ID]] = (
                             member_network)
                     else:
                         LOG.warning("Subnet id argument was not specified during "
@@ -1403,7 +1403,7 @@ class GetMemberSubnetVLANID(GetSubnetVLANIDParent, BaseNetworkTask):
     default_provides = a10constants.VLAN_ID
 
     def execute(self, member):
-        return self.get_vlan_id(member.subnet_id)
+        return self.get_vlan_id(member[constants.SUBNET_ID])
 
 
 class GetLBResourceSubnet(BaseNetworkTask):
@@ -1429,8 +1429,8 @@ class GetAllResourceSubnet(BaseNetworkTask):
     def execute(self, members):
         subnet = []
         for member in members:
-            if member.subnet_id:
-                subnet.append(self.network_driver.get_subnet(member.subnet_id))
+            if member[constants.SUBNET_ID]:
+                subnet.append(self.network_driver.get_subnet(member[constants.SUBNET_ID]))
         return subnet
 
 
@@ -1479,10 +1479,10 @@ class ReleaseSubnetAddressForMember(BaseNetworkTask):
                     amphorae = a10_task_utils.attribute_search(member, 'amphorae')
                     if amphorae is not None:
                         self.network_driver.release_subnet_addresses(
-                            member.subnet_id, addr_list, amphorae)
+                            member[constants.SUBNET_ID], addr_list, amphorae)
             except Exception as e:
                 LOG.exception("Failed to release addresses in NAT pool %s from subnet %s",
-                              nat_flavor['pool_name'], member.subnet_id)
+                              nat_flavor['pool_name'], member[constants.SUBNET_ID])
                 raise e
 
 
