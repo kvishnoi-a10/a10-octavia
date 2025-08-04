@@ -198,12 +198,12 @@ class PoolFlows(object):
                       a10constants.MEMBER_LIST),
             provides=constants.DELTAS))
         delete_pool_flow.add(a10_network_tasks.HandleNetworkDeltas(
-            requires=constants.DELTAS, provides=constants.ADDED_PORTS))
+            requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
         delete_pool_flow.add(
             vthunder_tasks.AmphoraePostNetworkUnplug(
                 requires=(
                     constants.LOADBALANCER,
-                    constants.ADDED_PORTS,
+                    constants.UPDATED_PORTS,
                     a10constants.VTHUNDER)))
         delete_pool_flow.add(database_tasks.GetAmphoraeFromLoadbalancer(
             requires=constants.LOADBALANCER_ID,

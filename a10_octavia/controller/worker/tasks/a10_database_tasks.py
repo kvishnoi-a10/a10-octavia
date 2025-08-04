@@ -31,6 +31,7 @@ from octavia.db import api as db_apis
 from octavia.db import repositories as repo
 from octavia.statistics import stats_base
 from octavia_lib.common import constants as lib_consts
+from octavia.api.drivers import utils as provider_utils
 
 from a10_octavia.common import a10constants
 from a10_octavia.common import exceptions
@@ -47,6 +48,7 @@ class BaseDatabaseTask(task.Task):
 
     def __init__(self, **kwargs):
         self.repos = repo.Repositories()
+        self._lb_repo = repo.LoadBalancerRepository()
         self.vthunder_repo = a10_repo.VThunderRepository()
         self.vrid_repo = a10_repo.VRIDRepository()
         self.amphora_repo = repo.AmphoraRepository()
@@ -106,13 +108,13 @@ class CreateVThunderEntry(BaseDatabaseTask):
         with db_apis.session().begin() as session:
             self.vthunder_repo.create(
                 session, vthunder_id=vthunder_id,
-                amphora_id=amphora.id,
+                amphora_id=amphora[constants.ID],
                 device_name=vthunder_id, username=username,
-                password=password, ip_address=amphora.lb_network_ip,
+                password=password, ip_address=amphora[constants.LB_NETWORK_IP],
                 undercloud=False, axapi_version=axapi_version,
-                loadbalancer_id=loadbalancer.id,
-                project_id=loadbalancer.project_id,
-                compute_id=amphora.compute_id,
+                loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID],
+                project_id=loadbalancer[constants.PROJECT_ID],
+                compute_id=amphora[constants.COMPUTE_ID],
                 topology=topology,
                 role=role,
                 last_udp_update=datetime.utcnow(),
@@ -127,11 +129,11 @@ class CreateVThunderEntry(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 self.vthunder_repo.delete(
-                    session, loadbalancer_id=loadbalancer.id)
+                    session, loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID])
         except NoResultFound:
             LOG.error(
                 "Failed to delete vThunder entry for load balancer: %s",
-                loadbalancer.id)
+                loadbalancer[constants.LOADBALANCER_ID])
 
 
 class CheckExistingThunderToProjectMappedEntries(BaseDatabaseTask):
@@ -186,7 +188,7 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
     """Get VThunder from db using LoadBalancer"""
 
     def execute(self, loadbalancer, master_amphora_status=True):
-        loadbalancer_id = loadbalancer.id
+        loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
         with db_apis.session().begin() as session:
             vthunder = self.vthunder_repo.get_vthunder_from_lb(
                 session, loadbalancer_id)
@@ -202,7 +204,7 @@ class GetBackupVThunderByLoadBalancer(BaseDatabaseTask):
     """ Get VThunder details from LoadBalancer"""
 
     def execute(self, loadbalancer, vthunder=None):
-        loadbalancer_id = loadbalancer.id
+        loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
         with db_apis.session().begin() as session:
             backup_vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                 session, loadbalancer_id)
@@ -240,9 +242,11 @@ class MapLoadbalancerToAmphora(BaseDatabaseTask):
             return None
 
         with db_apis.session().begin() as session:
+            lb = self._lb_repo.get(session,
+                                   id=loadbalancer[constants.LOADBALANCER_ID])
             vthunder = self.vthunder_repo.get_vthunder_by_project_id(
                 session,
-                loadbalancer.project_id)
+                lb.project_id)
 
             if vthunder is None:
                 # Check for spare vthunder
@@ -257,7 +261,7 @@ class MapLoadbalancerToAmphora(BaseDatabaseTask):
                     session)
                 if vthunder is None:
                     LOG.debug("No Amphora available for load balancer with id %s",
-                            loadbalancer.id)
+                            loadbalancer[constants.LOADBALANCER_ID])
                     return None
 
         return vthunder.id
@@ -907,19 +911,21 @@ class CountLoadbalancersWithFlavor(BaseDatabaseTask):
         try:
             project_list = []
             with db_apis.session().begin() as session:
+                lb = self._lb_repo.get(session,
+                                       id=loadbalancer[constants.LOADBALANCER_ID])
                 if vthunder and vthunder.hierarchical_multitenancy == 'enable':
                     project_list = self.vthunder_repo.get_project_list_using_partition(
                         session,
                         partition_name=vthunder.partition_name,
                         ip_address=vthunder.ip_address)
                 else:
-                    project_list = [loadbalancer.project_id]
+                    project_list = [loadbalancer[constants.PROJECT_ID]]
 
                 return self.loadbalancer_repo.get_lb_count_by_flavor(
-                    session, project_list, loadbalancer.flavor_id)
+                    session, project_list, lb.flavor_id)
         except Exception as e:
             LOG.exception("Failed to get LB count for flavor %s due to %s ",
-                          loadbalancer.flavor_id, str(e))
+                          lb.flavor_id, str(e))
             raise e
         return 0
 
@@ -1131,11 +1137,12 @@ class GetLatestLoadBalancer(BaseDatabaseTask):
 class CheckExistingVthunderTopology(BaseDatabaseTask):
     """This task only meant to use with vthunder flow[amphora]"""
 
-    def execute(self, loadbalancer, topology):
+    #def execute(self, loadbalancer, topology):
+    def execute(self, project_id, topology):
         with db_apis.session().begin() as session:
             vthunder = self.vthunder_repo.get_vthunder_with_different_topology(
                 session,
-                loadbalancer.project_id,
+                project_id,
                 topology)
 
         if vthunder is not None and topology != vthunder.topology:
@@ -1153,7 +1160,7 @@ class ValidateComputeForProject(BaseDatabaseTask):
         vthunder = None
         with db_apis.session().begin() as session:
             vthunder_ids = self.vthunder_repo.get_vthunders_by_project_id_and_role(
-                session, loadbalancer.project_id, role)
+                session, loadbalancer[constants.PROJECT_ID], role)
             for vthunder_id in vthunder_ids:
                 vthunder = self.vthunder_repo.get(
                     session,

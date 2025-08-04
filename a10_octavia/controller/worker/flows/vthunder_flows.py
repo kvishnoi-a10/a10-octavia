@@ -60,7 +60,7 @@ class VThunderFlows(object):
         create_vthunder_flow.add(database_tasks.MarkAmphoraBootingInDB(
             name=sf_name + '-' + constants.MARK_AMPHORA_BOOTING_INDB,
             requires=(constants.AMPHORA_ID, constants.COMPUTE_ID)))
-        create_vthunder_flow.add(compute_tasks.ComputeActiveWait(
+        create_vthunder_flow.add(compute_tasks.ComputeWait(
             name=sf_name + '-' + constants.COMPUTE_WAIT,
             requires=(constants.COMPUTE_ID, constants.AMPHORA_ID),
             provides=constants.COMPUTE_OBJ))
@@ -182,7 +182,18 @@ class VThunderFlows(object):
         create_amp_for_lb_subflow.add(database_tasks.MarkAmphoraBootingInDB(
             name=sf_name + '-' + constants.MARK_AMPHORA_BOOTING_INDB,
             requires=(constants.AMPHORA_ID, constants.COMPUTE_ID)))
-        create_amp_for_lb_subflow.add(compute_tasks.ComputeActiveWait(
+        
+        #todo: add retry logic
+        # retry_subflow = linear_flow.Flow(
+        #     constants.COMPUTE_CREATE_RETRY_SUBFLOW,
+        #     retry=compute_tasks.ComputeRetry())
+        # retry_subflow.add(compute_tasks.ComputeWait(
+        #     name=sf_name + '-' + constants.COMPUTE_WAIT,
+        #     requires=(constants.COMPUTE_ID, constants.AMPHORA_ID),
+        #     provides=constants.COMPUTE_OBJ))
+        # create_amp_for_lb_subflow.add(retry_subflow)
+
+        create_amp_for_lb_subflow.add(compute_tasks.ComputeWait(
             name=sf_name + '-' + constants.COMPUTE_WAIT,
             requires=(constants.COMPUTE_ID, constants.AMPHORA_ID),
             provides=constants.COMPUTE_OBJ))
@@ -312,7 +323,7 @@ class VThunderFlows(object):
         vthunder_for_amphora_subflow.add(database_tasks.UpdateAmphoraComputeId(
             name=sf_name + '-' + constants.UPDATE_AMPHORA_COMPUTEID,
             requires=(constants.AMPHORA_ID, constants.COMPUTE_ID)))
-        vthunder_for_amphora_subflow.add(compute_tasks.ComputeActiveWait(
+        vthunder_for_amphora_subflow.add(compute_tasks.ComputeWait(
             name=sf_name + '-' + constants.COMPUTE_WAIT,
             requires=(constants.COMPUTE_ID, constants.AMPHORA_ID),
             provides=constants.COMPUTE_OBJ))
@@ -353,10 +364,11 @@ class VThunderFlows(object):
         vthunder_for_amphora_subflow.add(a10_network_tasks.AllocateVIP(
             name=sf_name + '-' + a10constants.ALLOCATE_VIP,
             requires=[constants.LOADBALANCER, a10constants.LB_COUNT_SUBNET],
-            provides=constants.VIP))
+            provides=a10constants.VIP_DICT))
         vthunder_for_amphora_subflow.add(database_tasks.UpdateVIPAfterAllocation(
             name=sf_name + '-' + a10constants.UPDATE_VIP_AFTER_ALLOCATION,
-            requires=(constants.LOADBALANCER_ID, constants.VIP),
+            requires=[constants.LOADBALANCER_ID, constants.VIP],
+            rebind = {constants.VIP: a10constants.VIP_DICT},
             provides=constants.LOADBALANCER))
         vthunder_for_amphora_subflow.add(
             database_tasks.MarkAmphoraAllocatedInDB(
@@ -693,7 +705,7 @@ class VThunderFlows(object):
         create_amp_flow.add(database_tasks.MarkAmphoraBootingInDB(
             name=sf_name + '-' + constants.MARK_AMPHORA_BOOTING_INDB,
             requires=(constants.AMPHORA_ID, constants.COMPUTE_ID)))
-        create_amp_flow.add(compute_tasks.ComputeActiveWait(
+        create_amp_flow.add(compute_tasks.ComputeWait(
             name=sf_name + '-' + constants.COMPUTE_WAIT,
             requires=(constants.COMPUTE_ID, constants.AMPHORA_ID),
             provides=constants.COMPUTE_OBJ))

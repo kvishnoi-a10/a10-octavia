@@ -131,9 +131,28 @@ class A10ControllerWorker(object):
         self._exclude_result_logging_tasks = ()
         self.ctx_map = None
         self.ctx_lock = None
+        self.tf_engine = base_taskflow.BaseTaskFlowEngine()
         super(A10ControllerWorker, self).__init__()
-        
-    
+
+    def run_flow(self, func, *args, **kwargs):
+        if CONF.task_flow.jobboard_enabled:
+            self.services_controller.run_poster(func, *args, **kwargs)
+        else:
+            store = kwargs.pop('store', None)
+            flow_result = func(*args, **kwargs)
+
+            if isinstance(flow_result, tuple):
+                flow = flow_result[0]
+            else:
+                flow = flow_result
+            
+            tf = self.tf_engine.taskflow_load(flow, store=store)
+
+            with tf_logging.DynamicLoggingListener(tf, log=LOG):
+                tf.run()
+            
+            return tf
+
     def create_amphora(self):
         create_vthunder_tf = self.taskflow_load(
             self._vthunder_flows.get_create_vthunder_flow(),
@@ -485,6 +504,7 @@ class A10ControllerWorker(object):
                  constants.BUILD_TYPE_PRIORITY:
                  constants.LB_CREATE_NORMAL_PRIORITY,
                  lib_consts.FLAVOR: flavor,
+                 constants.PROJECT_ID: lb.project_id,
                  constants.VIP: lb.vip,
                  constants.AMPS_DATA: []}
 
@@ -512,21 +532,23 @@ class A10ControllerWorker(object):
                 create_lb_tf = self.taskflow_load(create_lb_flow, store=store)
             else:
                 busy = self._vthunder_busy_check(lb.project_id, True, ctx_flags, lb, store)
-                create_lb_flow = flow_utils.get_create_load_balancer_flow(
-                    load_balancer, topology, lb.project_id, listeners=listeners_dicts,
-                    pools=lb.pools)
+                # create_lb_flow = flow_utils.get_create_load_balancer_flow(
+                #     loadbalancer, topology, lb.project_id, listeners=listeners_dicts,
+                #     pools=lb.pools)
                 store.update([
                     (a10constants.COMPUTE_BUSY, busy),
                     (a10constants.VTHUNDER_CONFIG, None),
                     (a10constants.USE_DEVICE_FLAVOR, False)])
-                create_lb_tf = self.taskflow_load(create_lb_flow, store=store)
+                #create_lb_tf = self.run_flow(create_lb_flow, store=store)
+                #LOG.info("Project Id is %s", lb.project_id)
+                create_lb_tf = self.run_flow(flow_utils.get_create_load_balancer_flow, loadbalancer, topology, project_id=lb.project_id, listeners=listeners_dicts, pools=lb.pools, store=store)
                 self._register_flow_notify_handler(create_lb_tf, lb.project_id, True,
                                                    busy, ctx_flags, lb)
 
             
-            with tf_logging.DynamicLoggingListener(
-                    create_lb_tf, log=LOG,
-                    hide_inputs_outputs_of=self._exclude_result_logging_tasks):
+            # with tf_logging.DynamicLoggingListener(
+            #         create_lb_tf, log=LOG,
+            #         hide_inputs_outputs_of=self._exclude_result_logging_tasks):
                 create_lb_tf.run()
         finally:
             self._set_vthunder_available(lb.project_id, True, ctx_flags, lb)

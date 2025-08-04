@@ -476,10 +476,9 @@ class LoadBalancerRepository(repo.LoadBalancerRepository):
             or_(self.model_class.provisioning_status == "ACTIVE",
                 self.model_class.provisioning_status == "PENDING_UPDATE",
                 self.model_class.provisioning_status == "PENDING_CREATE"))
-
         model_list = query.all()
         for data in model_list:
-            lb_list.append(data.to_data_model())
+            lb_list.append(data.to_data_model().to_dict())
         return lb_list
 
     def get_all_other_lbs_in_project(self, session, project_id, id):

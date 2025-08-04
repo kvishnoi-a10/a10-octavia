@@ -349,20 +349,20 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         return network_list_datamodel
 
     def _add_allowed_address_pairs_to_port(self, port_id, ip_address_list):
-        port = self.network_proxy.show_port(port_id)
-        aap_ips = port['port']['allowed_address_pairs']
+        port = self.network_proxy.get_port(port_id)
+        aap_ips = port.allowed_address_pairs
         if isinstance(ip_address_list, list):
             for ip in ip_address_list:
                 aap_ips.append({'ip_address': ip})
         else:
             aap_ips.append({'ip_address': ip_address_list})
-        aap = {
-            'port': {
-                'allowed_address_pairs': aap_ips
-            }
-        }
+        # aap = {
+        #     'port': {
+        #         'allowed_address_pairs': aap_ips
+        #     }
+        # }
         self.network_proxy.update_port(port_id,
-                                       allowed_address_pairs=aap)
+                                       allowed_address_pairs=aap_ips)
 
     def allocate_vrid_fip(self, vrid, network_id, amphorae, fixed_ip=None):
 
@@ -517,7 +517,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
     def show_subnet_detailed(self, subnet_id):
         try:
-            subnet = self.network_proxy.show_subnet(subnet_id)
+            subnet = self.network_proxy.get_subnet(subnet_id)
             return subnet
         except Exception as e:
             LOG.exception(str(e))

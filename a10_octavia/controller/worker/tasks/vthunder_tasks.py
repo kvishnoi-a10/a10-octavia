@@ -115,10 +115,10 @@ class AmphoraePostVIPPlug(VThunderBaseTask):
     """Task to reboot and configure vThunder device"""
 
     @axapi_client_decorator
-    def execute(self, loadbalancer, vthunder, added_ports):
+    def execute(self, amphora, vthunder, updated_ports):
         """Execute get_info routine for a vThunder until it responds."""
-        amphora_id = loadbalancer.amphorae[0].id
-        if added_ports and amphora_id in added_ports and len(added_ports[amphora_id]) > 0:
+        amphora_id = amphora[0][constants.ID]
+        if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
             try:
                 self.axapi_client.system.action.write_memory()
                 if CONF.a10_house_keeping.use_periodic_write_memory == 'enable':
@@ -281,25 +281,29 @@ class EnableInterface(VThunderBaseTask):
     """Task to configure vThunder ports"""
 
     @axapi_client_decorator
-    def execute(self, vthunder, loadbalancer, added_ports, ifnum_master=None,
+    def execute(self, vthunder, loadbalancer, updated_ports, ifnum_master=None,
                 ifnum_backup=None, backup_vthunder=None, ifnum_address=None):
 
         if not vthunder:
             return
         topology = CONF.a10_controller_worker.loadbalancer_topology
-        amphora_id = loadbalancer.amphorae[0].id
+        session = db_apis.get_session()
+        with session.begin():
+            db_lb = self.loadbalancer_repo.get(
+                session, id=loadbalancer[constants.LOADBALANCER_ID])
+        amphora_id = db_lb.amphorae[0].id
         lb_exists_flag = self.loadbalancer_repo.check_lb_exists_in_project(
             db_apis.get_session(),
-            loadbalancer.project_id)
+            loadbalancer[constants.PROJECT_ID])
 
         if not lb_exists_flag:
-            compute_id = loadbalancer.amphorae[0].compute_id
+            compute_id = db_lb.amphorae[0].compute_id
             network_driver = utils.get_network_driver()
             nics = network_driver.get_plugged_networks(compute_id)
-            added_ports[amphora_id] = []
-            added_ports[amphora_id].append(nics[1])
+            updated_ports[amphora_id] = []
+            updated_ports[amphora_id].append(nics[1])
         try:
-            if added_ports and amphora_id in added_ports and len(added_ports[amphora_id]) > 0:
+            if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
                 interfaces = self.axapi_client.interface.get_list()
                 if (not lb_exists_flag and topology == "ACTIVE_STANDBY") or topology == "SINGLE":
                     # Clear un-matched static IPv6 addresses interfaces
@@ -370,7 +374,11 @@ class GetValidIPv6Address(VThunderBaseTask):
         if vthunder:
             ipv6_address_list = {}
             topology = CONF.a10_controller_worker.loadbalancer_topology
-            compute_id = loadbalancer.amphorae[0].compute_id
+            session = db_apis.get_session()
+            with session.begin():
+                db_lb = self.loadbalancer_repo.get(
+                    session, id=loadbalancer[constants.LOADBALANCER_ID])
+            compute_id = db_lb.amphorae[0].compute_id
             network_driver = utils.get_network_driver()
             nics = network_driver.get_plugged_networks(compute_id)
             if topology == "ACTIVE_STANDBY":
@@ -1570,7 +1578,7 @@ class SetVThunderHostname(VThunderBaseTask):
 
     @axapi_client_decorator
     def execute(self, vthunder, amphora):
-        hostname = "amphora-" + amphora.id
+        hostname = "amphora-" + amphora[constants.ID]
         hostname = hostname[0:31]
         try:
             self.axapi_client.system.action.set_hostname(hostname)

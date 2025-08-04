@@ -96,6 +96,7 @@ ID = 'id'
 SECURITY_GROUPS = 'security_groups'
 VIP_SEC_GROUP_PREFIX = 'lb-'
 LB_RESOURCE = 'lb_resource'
+VIP_DICT='vip_dict'
 
 SUBNET_ID = "subnet_id"
 VLAN_ID = "vlan_id"

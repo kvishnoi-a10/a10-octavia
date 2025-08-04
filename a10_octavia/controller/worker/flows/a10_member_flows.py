@@ -69,7 +69,7 @@ class MemberFlows(object):
                       a10constants.MEMBER_LIST),
             provides=constants.DELTAS))
         create_member_flow.add(a10_network_tasks.HandleNetworkDeltas(
-            requires=constants.DELTAS, provides=constants.ADDED_PORTS))
+            requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
         if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
             create_member_flow.add(vthunder_tasks.VCSSyncWait(
                 name="vcs_sync_wait_before_probe_device",
@@ -83,7 +83,7 @@ class MemberFlows(object):
             vthunder_tasks.AmphoraePostMemberNetworkPlug(
                 requires=(
                     constants.LOADBALANCER,
-                    constants.ADDED_PORTS,
+                    constants.UPDATED_PORTS,
                     a10constants.VTHUNDER)))
         create_member_flow.add(vthunder_tasks.VThunderComputeConnectivityWait(
             name=a10constants.VTHUNDER_CONNECTIVITY_WAIT,
@@ -118,7 +118,7 @@ class MemberFlows(object):
             vthunder_tasks.EnableInterfaceForMembers(
                 name=a10constants.ENABLE_MASTER_VTHUNDER_INTERFACE,
                 requires=[
-                    constants.ADDED_PORTS,
+                    constants.UPDATED_PORTS,
                     constants.LOADBALANCER,
                     a10constants.VTHUNDER,
                     a10constants.IPV6_ADDRESS_LIST]))
@@ -133,7 +133,7 @@ class MemberFlows(object):
                 vthunder_tasks.EnableInterfaceForMembers(
                     name=a10constants.ENABLE_BACKUP_VTHUNDER_INTERFACE,
                     requires=[
-                        constants.ADDED_PORTS,
+                        constants.UPDATED_PORTS,
                         constants.LOADBALANCER,
                         a10constants.VTHUNDER,
                         a10constants.BACKUP_VTHUNDER,
@@ -265,7 +265,7 @@ class MemberFlows(object):
                       a10constants.MEMBER_LIST),
             provides=constants.DELTAS))
         delete_member_flow.add(a10_network_tasks.HandleNetworkDeltas(
-            requires=constants.DELTAS, provides=constants.ADDED_PORTS))
+            requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
         if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
             delete_member_flow.add(vthunder_tasks.VCSSyncWait(
                 name=a10constants.VCS_SYNC_WAIT,
@@ -278,7 +278,7 @@ class MemberFlows(object):
             vthunder_tasks.AmphoraePostNetworkUnplug(
                 requires=(
                     constants.LOADBALANCER,
-                    constants.ADDED_PORTS,
+                    constants.UPDATED_PORTS,
                     a10constants.VTHUNDER)))
         delete_member_flow.add(vthunder_tasks.VThunderComputeConnectivityWait(
             name=a10constants.VTHUNDER_CONNECTIVITY_WAIT,
@@ -310,7 +310,7 @@ class MemberFlows(object):
             vthunder_tasks.EnableInterfaceForMembers(
                 name=a10constants.ENABLE_MASTER_VTHUNDER_INTERFACE,
                 requires=[
-                    constants.ADDED_PORTS,
+                    constants.UPDATED_PORTS,
                     constants.LOADBALANCER,
                     a10constants.VTHUNDER,
                     a10constants.IPV6_ADDRESS_LIST]))
@@ -325,7 +325,7 @@ class MemberFlows(object):
                 vthunder_tasks.EnableInterfaceForMembers(
                     name=a10constants.ENABLE_BACKUP_VTHUNDER_INTERFACE,
                     requires=[
-                        constants.ADDED_PORTS,
+                        constants.UPDATED_PORTS,
                         constants.LOADBALANCER,
                         a10constants.VTHUNDER,
                         a10constants.BACKUP_VTHUNDER,
@@ -1345,7 +1345,7 @@ class MemberFlows(object):
                       a10constants.MEMBER_LIST),
             provides=constants.DELTAS))
         batch_update_members_flow.add(a10_network_tasks.HandleNetworkDeltas(
-            requires=constants.DELTAS, provides=constants.ADDED_PORTS))
+            requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
         if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
             batch_update_members_flow.add(vthunder_tasks.VCSSyncWait(
                 name="vcs_sync_wait_before_probe_device",
@@ -1359,7 +1359,7 @@ class MemberFlows(object):
             vthunder_tasks.AmphoraePostMemberNetworkPlug(
                 requires=(
                     constants.LOADBALANCER,
-                    constants.ADDED_PORTS,
+                    constants.UPDATED_PORTS,
                     a10constants.VTHUNDER)))
         batch_update_members_flow.add(vthunder_tasks.VThunderComputeConnectivityWait(
             name=a10constants.VTHUNDER_CONNECTIVITY_WAIT,
@@ -1390,7 +1390,7 @@ class MemberFlows(object):
             vthunder_tasks.EnableInterfaceForMembers(
                 name=a10constants.ENABLE_MASTER_VTHUNDER_INTERFACE,
                 requires=[
-                    constants.ADDED_PORTS,
+                    constants.UPDATED_PORTS,
                     constants.LOADBALANCER,
                     a10constants.VTHUNDER,
                     a10constants.IPV6_ADDRESS_LIST]))
@@ -1405,7 +1405,7 @@ class MemberFlows(object):
                 vthunder_tasks.EnableInterfaceForMembers(
                     name=a10constants.ENABLE_BACKUP_VTHUNDER_INTERFACE,
                     requires=[
-                        constants.ADDED_PORTS,
+                        constants.UPDATED_PORTS,
                         constants.LOADBALANCER,
                         a10constants.VTHUNDER,
                         a10constants.BACKUP_VTHUNDER,
