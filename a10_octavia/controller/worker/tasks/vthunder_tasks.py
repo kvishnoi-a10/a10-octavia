@@ -1358,12 +1358,16 @@ class AmphoraePostNetworkUnplug(VThunderBaseTask):
     """Task to reboot and configure vThunder device"""
 
     @axapi_client_decorator
-    def execute(self, added_ports, loadbalancer, vthunder):
+    def execute(self, updated_ports, loadbalancer, vthunder):
         """Execute get_info routine for a vThunder until it responds."""
         try:
-            if loadbalancer.amphorae:
-                amphora_id = loadbalancer.amphorae[0].id
-                if added_ports and amphora_id in added_ports and len(added_ports[amphora_id]) > 0:
+            session = db_apis.get_session()
+            with session.begin():
+                db_lb = self.loadbalancer_repo.get(
+                    session, id=loadbalancer[constants.LOADBALANCER_ID])
+            if db_lb.amphorae[0]:
+                amphora_id = db_lb.amphorae[0].id
+                if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
                     self.axapi_client.system.action.write_memory()
                     if CONF.a10_house_keeping.use_periodic_write_memory == 'enable':
                         self.vthunder_repo.update_last_write_mem(

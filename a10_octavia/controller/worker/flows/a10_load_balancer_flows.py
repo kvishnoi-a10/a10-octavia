@@ -395,7 +395,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(database_tasks.MarkLBDeletedInDB(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(database_tasks.DecrementLoadBalancerQuota(
-            requires=constants.LOADBALANCER))
+            requires=constants.PROJECT_ID))
         if not deleteCompute:
             delete_LB_flow.add(vthunder_tasks.WriteMemory(
                 requires=a10constants.VTHUNDER))
@@ -718,6 +718,9 @@ class LoadBalancerFlows(object):
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG,
                       a10constants.DEVICE_CONFIG_DICT, constants.FLAVOR_DATA),
             provides=(a10constants.VTHUNDER_CONFIG, a10constants.USE_DEVICE_FLAVOR)))
+        lb_create_flow.add(a10_database_tasks.CreateRackVthunderEntry(
+            name='create_rack_vThunder_entry_in_database1',
+            requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG)))
         lb_create_flow.add(vthunder_tasks.HandleACOSPartitionChange(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG),
             provides=a10constants.VTHUNDER_CONFIG))
@@ -859,7 +862,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(database_tasks.MarkLBDeletedInDB(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(database_tasks.DecrementLoadBalancerQuota(
-            requires=constants.LOADBALANCER))
+            requires=constants.PROJECT_ID))
         delete_LB_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         delete_LB_flow.add(a10_database_tasks.SetThunderUpdatedAt(

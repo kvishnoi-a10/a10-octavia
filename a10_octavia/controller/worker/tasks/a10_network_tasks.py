@@ -801,7 +801,7 @@ class DeallocateVIP(BaseNetworkTask):
         except Exception as e:
             LOG.error("Failed to deallocate VIP.  Resources may still "
                       "be in use from vip: %(vip)s due to error: %(except)s",
-                      {'vip': loadbalancer.vip.ip_address, 'except': e})
+                      {'vip': loadbalancer[constants.VIP_ADDRESS], 'except': e})
 
 
 class UpdateVIP(BaseNetworkTask):
@@ -1120,7 +1120,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
             msg = "Failed to create neutron port for SLB resource: %s "
             if conf_floating_ip:
                 msg += "with floating IP {}".format(conf_floating_ip)
-            LOG.error(msg, lb_resource.id)
+            LOG.error(msg, lb_resource[constants.LOADBALANCER_ID])
             raise e
         return vrid
 
@@ -1236,7 +1236,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
     def revert(self, result, vthunder, lb_resource, vrid_list, subnet, *args, **kwargs):
         LOG.warning(
             "Reverting VRRP floating IP delta task for lb_resource %s",
-            lb_resource.id)
+            lb_resource[constants.LOADBALANCER_ID])
         # Delete newly added ports
         for port in self.added_fip_ports:
             try:

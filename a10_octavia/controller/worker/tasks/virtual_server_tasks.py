@@ -18,8 +18,6 @@ from oslo_log import log as logging
 from requests import exceptions
 from taskflow import task
 from octavia.common import constants
-from octavia.db import api as db_apis
-from octavia.db import repositories as repo
 
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator_for_revert
@@ -39,13 +37,8 @@ class LoadBalancerParent(object):
             'vrid': CONF.slb.default_virtual_server_vrid,
             'virtual_server': utils.meta(loadbalancer, 'virtual_server', {})
         }
-        self._lb_repo = repo.LoadBalancerRepository()
-        session = db_apis.get_session()
-        with session.begin():
-            lb = self._lb_repo.get(session,
-                                   id=loadbalancer[constants.LOADBALANCER_ID])
         status = self.axapi_client.slb.UP
-        if not lb.provisioning_status:
+        if not loadbalancer.get(constants.PROVISIONING_STATUS, True):
             status = self.axapi_client.slb.DOWN
         config_args['status'] = status
 
@@ -106,10 +99,10 @@ class DeleteVirtualServerTask(task.Task):
     def execute(self, loadbalancer, vthunder):
         if vthunder:
             try:
-                self.axapi_client.slb.virtual_server.delete(loadbalancer.id)
-                LOG.debug("Successfully deleted load balancer: %s", loadbalancer.id)
+                self.axapi_client.slb.virtual_server.delete(loadbalancer[constants.LOADBALANCER_ID])
+                LOG.debug("Successfully deleted load balancer: %s", loadbalancer[constants.LOADBALANCER_ID])
             except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-                LOG.exception("Failed to delete load balancer: %s", loadbalancer.id)
+                LOG.exception("Failed to delete load balancer: %s", loadbalancer[constants.LOADBALANCER_ID])
                 raise e
 
 
@@ -121,10 +114,10 @@ class UpdateVirtualServerTask(LoadBalancerParent, task.Task):
         try:
             loadbalancer.__dict__.update(update_dict)
             port_list = self.axapi_client.slb.virtual_server.get(
-                loadbalancer.id)['virtual-server'].get('port-list')
+                loadbalancer[constants.LOADBALANCER_ID])['virtual-server'].get('port-list')
             self.set(self.axapi_client.slb.virtual_server.replace, loadbalancer,
                      port_list=port_list, flavor_data=flavor_data)
-            LOG.debug("Successfully updated load balancer: %s", loadbalancer.id)
+            LOG.debug("Successfully updated load balancer: %s", loadbalancer[constants.LOADBALANCER_ID])
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-            LOG.exception("Failed to update load balancer: %s", loadbalancer.id)
+            LOG.exception("Failed to update load balancer: %s", loadbalancer[constants.LOADBALANCER_ID])
             raise e

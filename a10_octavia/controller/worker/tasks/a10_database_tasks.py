@@ -165,10 +165,10 @@ class CheckExistingThunderToProjectMappedEntries(BaseDatabaseTask):
             config_ip_addr_partition = '{}:{}'.format(
                 vthunder_config.ip_address, vthunder_config.partition_name)
             if existing_ip_addr_partition == config_ip_addr_partition:
-                if loadbalancer.project_id not in (vthunder.project_id,
+                if loadbalancer[constants.PROJECT_ID] not in (vthunder.project_id,
                                                    utils.get_parent_project(vthunder.project_id)):
                     raise exceptions.ProjectInUseByExistingThunderError(
-                        config_ip_addr_partition, vthunder.project_id, loadbalancer.project_id)
+                        config_ip_addr_partition, vthunder.project_id, loadbalancer[constants.PROJECT_ID])
 
 
 class DeleteVThunderEntry(BaseDatabaseTask):
@@ -178,7 +178,7 @@ class DeleteVThunderEntry(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 self.vthunder_repo.delete(
-                    session, loadbalancer_id=loadbalancer.id)
+                    session, loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID])
         except NoResultFound:
             pass
         LOG.info("Successfully deleted vthunder entry in database.")
@@ -282,7 +282,7 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
                     password=vthunder_config.password,
                     ip_address=vthunder_config.ip_address,
                     undercloud=vthunder_config.undercloud,
-                    loadbalancer_id=loadbalancer.id,
+                    loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID],
                     project_id=vthunder_config.project_id,
                     axapi_version=vthunder_config.axapi_version,
                     topology="STANDALONE",
@@ -298,7 +298,7 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
         except Exception as e:
             LOG.error(
                 'Failed to create vThunder entry in db for load balancer: %s.',
-                loadbalancer.id)
+                loadbalancer[constants.LOADBALANCER_ID])
             raise e
 
     def revert(self, result, loadbalancer, vthunder_config, *args, **kwargs):
@@ -309,15 +309,15 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
 
         LOG.warning(
             'Reverting create Rack VThunder in DB for load balancer: %s',
-            loadbalancer.id)
+            loadbalancer[constants.LOADBALANCER_ID])
         try:
             with db_apis.session().begin() as session:
                 self.vthunder_repo.delete(
-                    session, loadbalancer_id=loadbalancer.id)
+                    session, loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID])
         except Exception:
             LOG.error(
                 "Failed to delete vThunder entry for load balancer: %s",
-                loadbalancer.id)
+                loadbalancer[constants.LOADBALANCER_ID])
 
 
 class CreateVThunderHealthEntry(BaseDatabaseTask):
@@ -332,7 +332,7 @@ class CreateVThunderHealthEntry(BaseDatabaseTask):
                                     password=vthunder_config.password,
                                     ip_address=vthunder_config.ip_address,
                                     undercloud=vthunder_config.undercloud,
-                                    loadbalancer_id=loadbalancer.id,
+                                    loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID],
                                     project_id=vthunder_config.project_id,
                                     axapi_version=vthunder_config.axapi_version,
                                     topology="STANDALONE",
@@ -394,7 +394,7 @@ class GetVRIDForLoadbalancerResource(BaseDatabaseTask):
             if topology == "SINGLE":
                 owner = [vthunder.ip_address + "_" + vthunder.partition_name]
             else:
-                loadbalancer_id = loadbalancer.id
+                loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
                 with db_apis.session().begin() as session:
                     master_vthunder = self.vthunder_repo.get_vthunder_from_lb(
                         session, loadbalancer_id)
@@ -615,7 +615,7 @@ class CheckVipVLANCanBeDeleted(CheckVLANCanBeDeletedParent, BaseDatabaseTask):
     default_provides = a10constants.DELETE_VLAN
 
     def execute(self, loadbalancer):
-        return self.is_vlan_deletable(loadbalancer.project_id,
+        return self.is_vlan_deletable(loadbalancer[constants.PROJECT_ID],
                                       loadbalancer.vip.subnet_id,
                                       True)
 
@@ -638,7 +638,7 @@ class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
 
         with db_apis.session().begin() as session:
             self.loadbalancer_repo.update(session,
-                                        loadbalancer.id,
+                                        loadbalancer[constants.LOADBALANCER_ID],
                                         provisioning_status=constants.ACTIVE)
             self.listener_repo.prov_status_active_if_not_error(
                 session, listener.id)
@@ -648,12 +648,12 @@ class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 self.loadbalancer_repo.update(session,
-                                            id=loadbalancer.id,
+                                            id=loadbalancer[constants.LOADBALANCER_ID],
                                             provisioning_status=constants.ERROR)
         except Exception as e:
             LOG.error("Failed to update load balancer %(lb) "
                       "provisioning status to ERROR due to: "
-                      "%(except)s", {'lb': loadbalancer.id, 'except': e})
+                      "%(except)s", {'lb': loadbalancer[constants.LOADBALANCER_ID], 'except': e})
         try:
             with db_apis.session().begin() as session:
                 self.listener_repo.update(session,
@@ -1040,7 +1040,7 @@ class AddProjectSetIdDB(BaseDatabaseTask):
         mgmt_subnet = CONF.a10_controller_worker.amp_boot_network_list[0]
 
         try:
-            project_id = loadbalancer.project_id
+            project_id = loadbalancer[constants.PROJECT_ID]
             with db_apis.session().begin() as session:
                 entry = self.vrrp_set_repo.get(session, mgmt_subnet=mgmt_subnet,
                                             project_id=project_id)
@@ -1078,7 +1078,7 @@ class DeleteProjectSetIdDB(BaseDatabaseTask):
         try:
             # delete project set_id for all mgmt_subnet
             with db_apis.session().begin() as session:
-                self.vrrp_set_repo.delete(session, project_id=loadbalancer.project_id)
+                self.vrrp_set_repo.delete(session, project_id=loadbalancer[constants.PROJECT_ID])
         except Exception as e:
             LOG.exception('Failed to delete VRRP-A set_id for project due to :{}'.format(str(e)))
 
@@ -1115,7 +1115,7 @@ class GetLoadBalancerListForDeletion(BaseDatabaseTask):
                     loadbalancers_list = self.loadbalancer_repo.get_all_other_lbs_in_project(
                         session,
                         vthunder.project_id,
-                        loadbalancer.id)
+                        loadbalancer[constants.LOADBALANCER_ID])
                 return loadbalancers_list
         except Exception as e:
             LOG.exception('Failed to get active Loadbalancers related to vthunder '
@@ -1127,7 +1127,7 @@ class GetLatestLoadBalancer(BaseDatabaseTask):
     def execute(self, loadbalancer):
         try:
             with db_apis.session().begin() as session:
-                lb = self.loadbalancer_repo.get(session, id=loadbalancer.id)
+                lb = self.loadbalancer_repo.get(session, id=loadbalancer[constants.LOADBALANCER_ID])
                 return lb
         except Exception as e:
             LOG.exception("Failed to get latest loadbalancer: %s", str(e))
