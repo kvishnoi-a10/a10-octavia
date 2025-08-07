@@ -35,6 +35,7 @@ from octavia.common import keystone
 from octavia.db import api as db_apis
 from octavia.db import repositories as repo
 from stevedore import driver as stevedore_driver
+from octavia.common import constants
 
 from a10_octavia.common import a10constants
 from a10_octavia.common import data_models
@@ -383,7 +384,7 @@ def get_loadbalancer_flavor(loadbalancer):
     flavor_repo = repo.FlavorRepository()
     flavor_profile_repo = repo.FlavorProfileRepository()
     flavor = {}
-    flavor_id = loadbalancer.flavor_id
+    flavor_id = loadbalancer.get(constants.FLAVOR_ID)
     if flavor_id:
         flavor = flavor_repo.get(db_apis.get_session(), id=flavor_id)
         if flavor and flavor.flavor_profile_id:

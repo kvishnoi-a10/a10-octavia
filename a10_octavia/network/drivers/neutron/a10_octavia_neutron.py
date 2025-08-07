@@ -428,20 +428,20 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
     def remove_any_source_ip_on_egress(self, network_id, amphora):
         interface = self._get_plugged_interface(
-            amphora.compute_id, network_id, amphora.lb_network_ip)
+            amphora[constants.COMPUTE_ID], network_id, amphora[constants.LB_NETWORK_IP])
         if interface is not None:
             self._remove_allowed_address_pair_from_port(interface.port_id, '0.0.0.0/0')
 
     def _remove_allowed_address_pair_from_port(self, port_id, ip_address):
         try:
-            port = self.network_proxy.show_port(port_id)
+            port = self.network_proxy.get_port(port_id)
         except os_exceptions.NotFoundException:
             LOG.warning("Can't deallocate AAP from instance port {0} because it "
                         "cannot be found in neutron. "
                         "Continuing cleanup.".format(port_id))
             return
 
-        aap_ips = port['port']['allowed_address_pairs']
+        aap_ips = port.allowed_address_pairs
         if isinstance(ip_address, list):
             updated_aap_ips = aap_ips
             for ip in ip_address:
@@ -450,12 +450,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         else:
             updated_aap_ips = [aap_ip for aap_ip in aap_ips if aap_ip['ip_address'] != ip_address]
         if len(aap_ips) != len(updated_aap_ips):
-            aap = {
-                'port': {
-                    'allowed_address_pairs': updated_aap_ips,
-                }
-            }
-            self.network_proxy.update_port(port_id, aap)
+            self.network_proxy.update_port(port_id, allowed_address_pairs=updated_aap_ips)
 
     def deallocate_vrid_fip(self, vrid, subnet, amphorae):
         self.delete_port(vrid.vrid_port_id)

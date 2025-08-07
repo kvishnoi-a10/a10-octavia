@@ -40,12 +40,10 @@ from a10_octavia.common import utils
 # from a10_octavia.controller.worker.flows import a10_member_flows
 # from a10_octavia.controller.worker.flows import a10_pool_flows
 # from a10_octavia.controller.worker.flows import vthunder_flows
-from octavia_lib.common import constants as lib_consts
 from a10_octavia.db import repositories as a10repo
 
-from stevedore import driver as stevedore_driver
-from octavia_lib.common import constants as lib_consts
-from octavia.amphorae.driver_exceptions import exceptions as driver_exc
+# from stevedore import driver as stevedore_driver
+# from octavia.amphorae.driver_exceptions import exceptions as driver_exc
 from octavia.api.drivers import utils as provider_utils
 from a10_octavia.controller.worker.flows import flow_utils
 
@@ -74,7 +72,7 @@ def ctx_cnt_dec(ctx_lock, ctx_map, key, is_reload_thread, flags):
 
         normal_thrd_num, reload_thrd_num = ctx
         LOG.debug('vthunder %s ctx: normal_thrd(%d), reload_thrd(%d)',
-                  key, normal_thrd_num, reload_thrd_num)
+                key, normal_thrd_num, reload_thrd_num)
 
         if is_reload_thread:
             if reload_thrd_num > 0:
@@ -85,7 +83,7 @@ def ctx_cnt_dec(ctx_lock, ctx_map, key, is_reload_thread, flags):
         if flags is not None:
             flags[0] = False
         LOG.debug('vthunder %s ctx: normal_thrd(%d), reload_thrd(%d)',
-                  key, normal_thrd_num, reload_thrd_num)
+                key, normal_thrd_num, reload_thrd_num)
         ctx_map[key] = (normal_thrd_num, reload_thrd_num)
     except Exception:
         # unexpected error should not happen, reset counters here.
@@ -157,8 +155,8 @@ class A10ControllerWorker(object):
         create_vthunder_tf = self.taskflow_load(
             self._vthunder_flows.get_create_vthunder_flow(),
             store={constants.BUILD_TYPE_PRIORITY:
-                   constants.LB_CREATE_SPARES_POOL_PRIORITY,
-                   constants.FLAVOR: None}
+                constants.LB_CREATE_SPARES_POOL_PRIORITY,
+                constants.FLAVOR: None}
         )
         with tf_logging.DynamicLoggingListener(create_vthunder_tf, log=LOG):
             create_vthunder_tf.run()
@@ -211,13 +209,11 @@ class A10ControllerWorker(object):
         }
 
         try:
-            create_hm_tf = self.taskflow_load(
-                    flow_utils.get_create_health_monitor_flow(topology=topology),
-                    store=store)
+            create_hm_tf = self.run_flow(flow_utils.get_create_health_monitor_flow,topology=topology,
+                                        store= store)
             self._register_flow_notify_handler(create_hm_tf, db_health_monitor.project_id,
                                             False, busy, ctx_flags, load_balancer)
-            with tf_logging.DynamicLoggingListener(create_hm_tf, log=LOG):
-                create_hm_tf.run()
+            create_hm_tf.run()
         finally:
             self._set_vthunder_available(db_health_monitor.project_id, False, ctx_flags, load_balancer)
 
@@ -228,10 +224,6 @@ class A10ControllerWorker(object):
         :returns: None
         :raises HMNotFound: The referenced health monitor was not found
         """
-        # health_mon = self._health_mon_repo.get(db_apis.get_session(),
-        #                                        id=health_monitor_id)
-
-        #pool = health_mon.pool
         session = db_apis.get_session()
         with session.begin():
             db_health_monitor = self._health_mon_repo.get(
@@ -252,22 +244,20 @@ class A10ControllerWorker(object):
         busy = self._vthunder_busy_check(db_health_monitor.project_id, False, ctx_flags, load_balancer)
         
         store={constants.HEALTH_MON: health_monitor,
-                       constants.POOL_ID: pool.id,
-                       constants.LISTENERS: listeners_dicts,
-                       constants.LOADBALANCER_ID: load_balancer.id,
-                       constants.LOADBALANCER: provider_lb,
-                       constants.PROJECT_ID: load_balancer.project_id,
-                       a10constants.COMPUTE_BUSY: busy,
-                       a10constants.WRITE_MEM_SHARED_PART: True}
+                    constants.POOL_ID: pool.id,
+                    constants.LISTENERS: listeners_dicts,
+                    constants.LOADBALANCER_ID: load_balancer.id,
+                    constants.LOADBALANCER: provider_lb,
+                    constants.PROJECT_ID: load_balancer.project_id,
+                    a10constants.COMPUTE_BUSY: busy,
+                    a10constants.WRITE_MEM_SHARED_PART: True}
         
         try:
-            delete_hm_tf = self.taskflow_load(
-                flow_utils.get_delete_health_monitor_flow(topology=topology), store =store)
+            delete_hm_tf = self.run_flow(flow_utils.get_delete_health_monitor_flow,topology=topology,
+                                        store=store)
             self._register_flow_notify_handler(delete_hm_tf, db_health_monitor.project_id, False,
-                                               busy, ctx_flags, load_balancer)
-            with tf_logging.DynamicLoggingListener(delete_hm_tf,
-                                                log=LOG):
-                delete_hm_tf.run()
+                                            busy, ctx_flags, load_balancer)
+            delete_hm_tf.run()
         finally:
             self._set_vthunder_available(db_health_monitor.project_id, False, ctx_flags, load_balancer)
 
@@ -304,22 +294,19 @@ class A10ControllerWorker(object):
         busy = self._vthunder_busy_check(db_health_monitor.project_id, False, ctx_flags, load_balancer)
         
         store={constants.HEALTH_MON: original_health_monitor,
-               constants.POOL_ID: pool.id,
-               constants.LISTENERS: listeners_dicts,
-               constants.LOADBALANCER_ID: load_balancer.id,
-               constants.LOADBALANCER: provider_lb,
-               constants.UPDATE_DICT: health_monitor_updates,
-               a10constants.WRITE_MEM_SHARED_PART: True}
+            constants.POOL_ID: pool.id,
+            constants.LISTENERS: listeners_dicts,
+            constants.LOADBALANCER_ID: load_balancer.id,
+            constants.LOADBALANCER: provider_lb,
+            constants.UPDATE_DICT: health_monitor_updates,
+            a10constants.WRITE_MEM_SHARED_PART: True}
         
         try:
-            update_hm_tf = self.taskflow_load(
-                flow_utils.get_update_health_monitor_flow(topology=topology),
-                store=store)
+            update_hm_tf = self.run_flow(flow_utils.get_update_health_monitor_flow, topology=topology,
+                                        store= store)
             self._register_flow_notify_handler(update_hm_tf, db_health_monitor.project_id, False,
-                                               busy, ctx_flags, load_balancer)
-            with tf_logging.DynamicLoggingListener(update_hm_tf,
-                                                log=LOG):
-                update_hm_tf.run()
+                                            busy, ctx_flags, load_balancer)
+            update_hm_tf.run()
         finally:
             self._set_vthunder_available(db_health_monitor.project_id, False, ctx_flags, load_balancer)
 
@@ -362,29 +349,23 @@ class A10ControllerWorker(object):
             load_balancer).to_dict(recurse=True)
 
         store = {constants.LISTENERS: provider_lb['listeners'],
-                 constants.LOADBALANCER: provider_lb,
-                 constants.LOADBALANCER_ID: load_balancer.id}
+                constants.LOADBALANCER: provider_lb,
+                constants.LOADBALANCER_ID: load_balancer.id}
         try:
             if (db_listener[constants.PROJECT_ID] in parent_project_list or
                     (listener_parent_proj and listener_parent_proj in parent_project_list)
                     or self._is_rack_flow(db_listener[constants.PROJECT_ID], loadbalancer=provider_lb)):
-                create_listener_tf = self.taskflow_load(
-                    flow_utils.get_rack_vthunder_create_listener_flow(
-                        db_listener[constants.PROJECT_ID]),
-                    store=store)
+                create_listener_tf = self.run_flow(flow_utils.get_rack_vthunder_create_listener_flow,
+                                                db_listener[constants.PROJECT_ID],store=store)
             else:
                 busy = self._vthunder_busy_check(db_listener[constants.PROJECT_ID], False, ctx_flags,
-                                                 provider_lb)
+                                                provider_lb)
                 store.update({a10constants.COMPUTE_BUSY: busy})
-                create_listener_tf = self.taskflow_load(
-                    flow_utils.get_create_listener_flow(topology=topology),
-                    store=store)
+                create_listener_tf = self.run_flow(flow_utils.get_create_listener_flow,
+                                                topology=topology,store=store)
                 self._register_flow_notify_handler(create_listener_tf, listener[constants.PROJECT_ID], False,
-                                                   busy, ctx_flags, provider_lb)
-
-            with tf_logging.DynamicLoggingListener(create_listener_tf,
-                                                log=LOG):
-                create_listener_tf.run()
+                                                busy, ctx_flags, provider_lb)
+            create_listener_tf.run()
         finally:
             self._set_vthunder_available(listener[constants.PROJECT_ID], False, ctx_flags, provider_lb)
 
@@ -415,17 +396,17 @@ class A10ControllerWorker(object):
                 delete_listener_tf = self.taskflow_load(
                     flow_utils.get_delete_rack_listener_flow(),
                     store={constants.LOADBALANCER: db_lb,
-                           constants.LISTENER: listener})
+                        constants.LISTENER: listener})
             else:
                 busy = self._vthunder_busy_check(listener[constants.PROJECT_ID], False, ctx_flags,
-                                                 db_lb)
+                                                db_lb)
                 delete_listener_tf = self.taskflow_load(
                     flow_utils.get_delete_listener_flow(topology),
                     store={constants.LOADBALANCER: db_lb,
-                           a10constants.COMPUTE_BUSY: busy,
-                           constants.LISTENER: listener})
+                        a10constants.COMPUTE_BUSY: busy,
+                        constants.LISTENER: listener})
                 self._register_flow_notify_handler(delete_listener_tf, listener[constants.PROJECT_ID], False,
-                                                   busy, ctx_flags, db_lb)
+                                                busy, ctx_flags, db_lb)
             with tf_logging.DynamicLoggingListener(delete_listener_tf,
                                                 log=LOG):
                 delete_listener_tf.run()
@@ -462,11 +443,11 @@ class A10ControllerWorker(object):
             update_listener_tf = self.taskflow_load(
                 flow_utils.get_update_listener_flow(topology),
                 store={constants.LISTENER: listener,
-                       a10constants.COMPUTE_BUSY: busy,
-                       constants.LOADBALANCER: db_lb,
-                       constants.UPDATE_DICT: listener_updates})
+                    a10constants.COMPUTE_BUSY: busy,
+                    constants.LOADBALANCER: db_lb,
+                    constants.UPDATE_DICT: listener_updates})
             self._register_flow_notify_handler(update_listener_tf, listener[constants.PROJECT_ID], False,
-                                               busy, ctx_flags, db_lb)
+                                            busy, ctx_flags, db_lb)
             
             with tf_logging.DynamicLoggingListener(update_listener_tf, log=LOG):
                 update_listener_tf.run()
@@ -488,7 +469,7 @@ class A10ControllerWorker(object):
         session = db_apis.get_session()
         with session.begin():
             lb = self._lb_repo.get(session,
-                                   id=loadbalancer[constants.LOADBALANCER_ID])
+                                id=loadbalancer[constants.LOADBALANCER_ID])
         if not lb:
             LOG.warning('Failed to fetch %s %s from DB. Retrying for up to '
                         '60 seconds.', 'load_balancer',
@@ -499,22 +480,18 @@ class A10ControllerWorker(object):
         if not flavor and flavor_id:
             flavor = self._get_flavor_data(flavor_id)
 
-        store = {lib_consts.LOADBALANCER_ID:
-                 loadbalancer[lib_consts.LOADBALANCER_ID],
-                 constants.BUILD_TYPE_PRIORITY:
-                 constants.LB_CREATE_NORMAL_PRIORITY,
-                 lib_consts.FLAVOR: flavor,
-                 constants.PROJECT_ID: lb.project_id,
-                 constants.VIP: lb.vip,
-                 constants.AMPS_DATA: []}
-
         topology = CONF.a10_controller_worker.loadbalancer_topology
         
         listeners_dicts = (
             provider_utils.db_listeners_to_provider_dicts_list_of_dicts(
                 lb.listeners)
         )
-
+        store = {constants.LOADBALANCER_ID: loadbalancer[constants.LOADBALANCER_ID],
+        constants.BUILD_TYPE_PRIORITY: constants.LB_CREATE_NORMAL_PRIORITY,
+        constants.FLAVOR: flavor,
+        constants.PROJECT_ID: loadbalancer[constants.PROJECT_ID],
+        constants.VIP: lb.vip,
+        constants.AMPS_DATA: []}
 
         store[constants.UPDATE_DICT] = {
             constants.TOPOLOGY: topology,
@@ -523,35 +500,37 @@ class A10ControllerWorker(object):
 
         ctx_flags = [False]
         try:
-            if self._is_rack_flow(lb.project_id, flavor=flavor):
-                vthunder_conf = CONF.hardware_thunder.devices.get(lb.project_id, None)
+            if self._is_rack_flow(loadbalancer[constants.PROJECT_ID], flavor=flavor):
+                vthunder_conf = CONF.hardware_thunder.devices.get(loadbalancer[constants.PROJECT_ID], None)
                 device_dict = CONF.hardware_thunder.devices
-                create_lb_flow = flow_utils.get_create_rack_vthunder_load_balancer_flow(
-                    vthunder_conf=vthunder_conf, device_dict=device_dict,
-                    topology=topology, listeners=listeners_dicts, pools=lb.pools)
-                create_lb_tf = self.taskflow_load(create_lb_flow, store=store)
+                create_lb_tf = self.run_flow(
+                    flow_utils.get_create_rack_vthunder_load_balancer_flow,
+                    vthunder_conf=vthunder_conf,
+                    device_dict=device_dict,
+                    topology=topology,
+                    listeners=listeners_dicts,
+                    pools=lb.pools,
+                    store=store
+                )
             else:
-                busy = self._vthunder_busy_check(lb.project_id, True, ctx_flags, lb, store)
-                # create_lb_flow = flow_utils.get_create_load_balancer_flow(
-                #     loadbalancer, topology, lb.project_id, listeners=listeners_dicts,
-                #     pools=lb.pools)
+                busy = self._vthunder_busy_check(loadbalancer[constants.PROJECT_ID], True, ctx_flags, loadbalancer, store)
                 store.update([
                     (a10constants.COMPUTE_BUSY, busy),
                     (a10constants.VTHUNDER_CONFIG, None),
                     (a10constants.USE_DEVICE_FLAVOR, False)])
                 #create_lb_tf = self.run_flow(create_lb_flow, store=store)
                 #LOG.info("Project Id is %s", lb.project_id)
-                create_lb_tf = self.run_flow(flow_utils.get_create_load_balancer_flow, loadbalancer, topology, project_id=lb.project_id, listeners=listeners_dicts, pools=lb.pools, store=store)
-                self._register_flow_notify_handler(create_lb_tf, lb.project_id, True,
-                                                   busy, ctx_flags, lb)
+                create_lb_tf = self.run_flow(flow_utils.get_create_load_balancer_flow, loadbalancer, topology, project_id=loadbalancer[constants.PROJECT_ID], listeners=listeners_dicts, pools=loadbalancer.get(constants.POOL), store=store)
+                self._register_flow_notify_handler(create_lb_tf, loadbalancer[constants.PROJECT_ID], True,
+                                                busy, ctx_flags, loadbalancer)
 
             
             # with tf_logging.DynamicLoggingListener(
             #         create_lb_tf, log=LOG,
             #         hide_inputs_outputs_of=self._exclude_result_logging_tasks):
-                create_lb_tf.run()
+            create_lb_tf.run()
         finally:
-            self._set_vthunder_available(lb.project_id, True, ctx_flags, lb)
+            self._set_vthunder_available(loadbalancer[constants.PROJECT_ID], True, ctx_flags, loadbalancer)
 
     def delete_load_balancer(self, load_balancer, cascade=False):
         """Function to delete load balancer for A10 provider
@@ -568,7 +547,7 @@ class A10ControllerWorker(object):
                                                             loadbalancer_id)
         deleteCompute = False
         ctx_flags = [False]
-        busy = self._vthunder_busy_check(db_lb.project_id, True, ctx_flags, db_lb)
+        busy = self._vthunder_busy_check(load_balancer[constants.PROJECT_ID], True, ctx_flags, load_balancer)
         try:
             if vthunder:
                 deleteCompute = self._vthunder_repo.get_delete_compute_flag(db_apis.get_session(),
@@ -584,10 +563,10 @@ class A10ControllerWorker(object):
                 a10constants.USE_DEVICE_FLAVOR: False,
                 a10constants.LB_COUNT_THUNDER: None,
                 a10constants.MEMBER_COUNT_THUNDER: None,
-                constants.PROJECT_ID: db_lb.project_id
+                constants.PROJECT_ID: load_balancer[constants.PROJECT_ID]
             }
 
-            if self._is_rack_flow(db_lb.project_id, loadbalancer=db_lb):
+            if self._is_rack_flow(load_balancer[constants.PROJECT_ID], loadbalancer=load_balancer):
                 vthunder_conf = CONF.hardware_thunder.devices.get(db_lb.project_id, None)
                 device_dict = CONF.hardware_thunder.devices
                 delete_lb_tf = self.run_flow(
@@ -608,12 +587,12 @@ class A10ControllerWorker(object):
                 )
 
             self._register_flow_notify_handler(
-                delete_lb_tf, db_lb.project_id, True, busy, ctx_flags, db_lb)
+                delete_lb_tf, load_balancer[constants.PROJECT_ID], True, busy, ctx_flags, load_balancer)
 
             delete_lb_tf.run()
 
         finally:
-            self._set_vthunder_available(db_lb.project_id, True, ctx_flags, db_lb)
+            self._set_vthunder_available(load_balancer[constants.PROJECT_ID], True, ctx_flags, load_balancer)
 
     def update_load_balancer(self, original_load_balancer, load_balancer_updates):
         """Function to update load balancer for A10 provider
@@ -623,7 +602,6 @@ class A10ControllerWorker(object):
         :returns: None
         :raises LBNotFound: The referenced load balancer was not found
         """
-
         try:
             self._get_db_obj_until_pending_update(
                 self._lb_repo,
@@ -635,39 +613,47 @@ class A10ControllerWorker(object):
                         'an upgrade is in progress and continuing.',
                         constants.PENDING_UPDATE)
         topology = CONF.a10_controller_worker.loadbalancer_topology
+        LOG.debug("---------------original_load_balancer: %s-----------------", original_load_balancer)
+        LOG.debug("Type of original_load_balancer: %s", type(original_load_balancer))
 
         ctx_flags = [False]
+        if constants.VIP not in original_load_balancer:
+            original_load_balancer['vip'] = {
+                constants.VIP_ADDRESS: original_load_balancer.get(constants.VIP_ADDRESS),
+                constants.VIP_NETWORK_ID: original_load_balancer.get(constants.VIP_NETWORK_ID),
+                constants.VIP_PORT_ID: original_load_balancer.get(constants.VIP_PORT_ID),
+                constants.VIP_SUBNET_ID: original_load_balancer.get(constants.VIP_SUBNET_ID),
+                constants.VIP_QOS_POLICY_ID: original_load_balancer.get(constants.VIP_QOS_POLICY_ID)
+            }
         try:
-            if self._is_rack_flow(original_load_balancer.project_id, loadbalancer=original_load_balancer):
-                vthunder_conf = CONF.hardware_thunder.devices.get(original_load_balancer.project_id, None)
+            if self._is_rack_flow(original_load_balancer[constants.PROJECT_ID], loadbalancer=original_load_balancer):
+                vthunder_conf = CONF.hardware_thunder.devices.get(original_load_balancer[constants.PROJECT_ID], None)
                 device_dict = CONF.hardware_thunder.devices
-                update_lb_tf = self.taskflow_load(
-                    flow_utils.get_update_rack_load_balancer_flow(vthunder_conf=vthunder_conf,
-                                                                      device_dict=device_dict,
-                                                                      topology=topology),
-                    store={constants.LOADBALANCER: original_load_balancer,
+                store={constants.LOADBALANCER: original_load_balancer,
                            constants.VIP: original_load_balancer.vip,
-                           constants.UPDATE_DICT: load_balancer_updates})
+                           constants.UPDATE_DICT: load_balancer_updates}
+                update_lb_tf = self.run_flow(flow_utils.get_update_rack_load_balancer_flow,
+                                            vthunder_conf=vthunder_conf,device_dict=device_dict,
+                                            topology=topology,
+                                            store=store)
             else:
-                busy = self._vthunder_busy_check(original_load_balancer.project_id, False, ctx_flags, original_load_balancer)
-                update_lb_tf = self.taskflow_load(
-                    flow_utils.get_update_load_balancer_flow(topology=topology),
-                    store={constants.LOADBALANCER: original_load_balancer,
-                           constants.LOADBALANCER_ID: original_load_balancer.id,
-                           constants.VIP: original_load_balancer.vip,
-                           a10constants.COMPUTE_BUSY: busy,
-                           constants.UPDATE_DICT: load_balancer_updates,
-                           a10constants.VTHUNDER_CONFIG: None,
-                           a10constants.USE_DEVICE_FLAVOR: False})
-                self._register_flow_notify_handler(update_lb_tf, original_load_balancer.project_id, False,
-                                                   busy, ctx_flags, original_load_balancer)
+                busy = self._vthunder_busy_check(original_load_balancer[constants.PROJECT_ID], False, ctx_flags, original_load_balancer)
+                store={constants.LOADBALANCER: original_load_balancer,
+                        constants.LOADBALANCER_ID: original_load_balancer[constants.LOADBALANCER_ID],
+                        constants.VIP: original_load_balancer[constants.VIP],
+                        a10constants.COMPUTE_BUSY: busy,
+                        constants.UPDATE_DICT: load_balancer_updates,
+                        a10constants.VTHUNDER_CONFIG: None,
+                        a10constants.USE_DEVICE_FLAVOR: False}
+                update_lb_tf = self.run_flow(flow_utils.get_update_load_balancer_flow,
+                                            topology=topology,
+                                            store=store)
+                self._register_flow_notify_handler(update_lb_tf, original_load_balancer[constants.PROJECT_ID], False,
+                                                busy, ctx_flags, original_load_balancer)
 
-            
-            with tf_logging.DynamicLoggingListener(update_lb_tf,
-                                                log=LOG):
-                update_lb_tf.run()
+            update_lb_tf.run()
         finally:
-            self._set_vthunder_available(original_load_balancer.project_id, False, ctx_flags, original_load_balancer)
+            self._set_vthunder_available(original_load_balancer[constants.PROJECT_ID], False, ctx_flags, original_load_balancer)
 
     @tenacity.retry(
         retry=tenacity.retry_if_exception_type(db_exceptions.NoResultFound),
@@ -685,7 +671,7 @@ class A10ControllerWorker(object):
         session = db_apis.get_session()
         with session.begin():
             db_member = self._member_repo.get(session,
-                                              id=member[constants.MEMBER_ID])
+                                            id=member[constants.MEMBER_ID])
         if not db_member:
             LOG.warning('Failed to fetch %s %s from DB. Retrying for up to '
                         '60 seconds.', 'l7member',
@@ -722,17 +708,17 @@ class A10ControllerWorker(object):
                 create_member_tf = self.taskflow_load(
                     flow_utils.get_create_member_flow(topology=topology),
                     store={constants.MEMBER: member,
-                           constants.LISTENERS:
-                           listeners_dicts,
-                           constants.LOADBALANCER:
-                           load_balancer,
-                           a10constants.COMPUTE_BUSY: busy,
-                           constants.POOL: pool,
-                           a10constants.VTHUNDER_CONFIG: None,
-                           a10constants.USE_DEVICE_FLAVOR: False,
-                           constants.LOADBALANCER_ID: load_balancer.id})
+                        constants.LISTENERS:
+                        listeners_dicts,
+                        constants.LOADBALANCER:
+                        load_balancer,
+                        a10constants.COMPUTE_BUSY: busy,
+                        constants.POOL: pool,
+                        a10constants.VTHUNDER_CONFIG: None,
+                        a10constants.USE_DEVICE_FLAVOR: False,
+                        constants.LOADBALANCER_ID: load_balancer.id})
                 self._register_flow_notify_handler(create_member_tf, member.project_id, True,
-                                                   busy, ctx_flags, load_balancer)
+                                                busy, ctx_flags, load_balancer)
 
             
             with tf_logging.DynamicLoggingListener(create_member_tf,
@@ -750,8 +736,7 @@ class A10ControllerWorker(object):
         """
         session = db_apis.get_session()
         with session.begin():
-            pool = self._pool_repo.get(session,
-                                       id=member[constants.POOL_ID])
+            pool = self._pool_repo.get(session,id=member[constants.POOL_ID])
 
         load_balancer = pool.load_balancer
         provider_lb = provider_utils.db_loadbalancer_to_provider_loadbalancer(
@@ -769,22 +754,22 @@ class A10ControllerWorker(object):
                     flow_utils.get_rack_vthunder_delete_member_flow(
                         vthunder_conf=vthunder_conf, device_dict=device_dict),
                     store={constants.MEMBER: member, constants.LISTENERS: listeners_dicts,
-                           constants.LOADBALANCER: load_balancer, constants.POOL: pool}
+                        constants.LOADBALANCER: load_balancer, constants.POOL: pool}
                 )
             else:
                 busy = self._vthunder_busy_check(load_balancer.project_id, True, ctx_flags, load_balancer)
                 delete_member_tf = self.taskflow_load(
                     flow_utils.get_delete_member_flow(topology=topology),
                     store={constants.MEMBER: member, constants.LISTENERS: listeners_dicts,
-                           constants.LOADBALANCER: load_balancer, a10constants.COMPUTE_BUSY: busy,
-                           constants.POOL: pool, a10constants.VTHUNDER_CONFIG: None,
-                           a10constants.USE_DEVICE_FLAVOR: False,
-                           a10constants.LB_COUNT_THUNDER: None,
-                           a10constants.MEMBER_COUNT_THUNDER: None,
-                           constants.LOADBALANCER_ID: load_balancer.id}
+                        constants.LOADBALANCER: load_balancer, a10constants.COMPUTE_BUSY: busy,
+                        constants.POOL: pool, a10constants.VTHUNDER_CONFIG: None,
+                        a10constants.USE_DEVICE_FLAVOR: False,
+                        a10constants.LB_COUNT_THUNDER: None,
+                        a10constants.MEMBER_COUNT_THUNDER: None,
+                        constants.LOADBALANCER_ID: load_balancer.id}
                 )
                 self._register_flow_notify_handler(delete_member_tf, load_balancer.project_id, True,
-                                                   busy, ctx_flags, load_balancer)
+                                                busy, ctx_flags, load_balancer)
             
             with tf_logging.DynamicLoggingListener(delete_member_tf,
                                                 log=LOG):
@@ -802,17 +787,17 @@ class A10ControllerWorker(object):
             if mem_cnt > 1:
                 if mem_id in old_member_ids:
                     error_msg = ("Duplicate members with id {} and IP {} and port {} "
-                                 "found in member database.".format(mem_id, mem_ip, mem_port))
+                                "found in member database.".format(mem_id, mem_ip, mem_port))
                 if mem_id in new_member_ids or mem_id in updated_member_ids:
                     error_msg = ("Duplicate members with id {} and IP {} and port {} "
-                                 "found in batch update request.".format(mem_id, mem_ip, mem_port))
+                                "found in batch update request.".format(mem_id, mem_ip, mem_port))
                 LOG.warning(error_msg)
                 valid = False
         return valid
 
     def _rollback_members(self, old_member_ids, new_member_ids,
-                          updated_member_ids, load_balancer,
-                          listeners, pool):
+                        updated_member_ids, load_balancer,
+                        listeners, pool):
         set_o_ids = set(old_member_ids)
         set_u_ids = set(updated_member_ids)
         set_n_ids = set(new_member_ids)
@@ -825,33 +810,33 @@ class A10ControllerWorker(object):
         for mem in current_members:
             # Rollback status to prevent pending state lock
             self._member_repo.update(db_apis.get_session(), mem.id,
-                                     provisioning_status=constants.ACTIVE)
+                                    provisioning_status=constants.ACTIVE)
             LOG.info("Member with id {} and ip {} and port {} slated for "
-                     "batch update have been set to ACTIVE state.".format(
-                         mem.id, mem.ip_address, mem.protocol_port))
+                    "batch update have been set to ACTIVE state.".format(
+                        mem.id, mem.ip_address, mem.protocol_port))
 
         new_members = [self._member_repo.get(db_apis.get_session(), id=mid)
-                       for mid in set_n_ids]
+                    for mid in set_n_ids]
 
         for mem in new_members:
             current_member_ids.add(mem.id)
             LOG.info("Member with id {} and ip {} and port {} "
-                     "slated for creation under batch update "
-                     "has been deleted.".format(mem.id, mem.ip_address, mem.protocol_port))
+                    "slated for creation under batch update "
+                    "has been deleted.".format(mem.id, mem.ip_address, mem.protocol_port))
         self._member_repo.delete_members(db_apis.get_session(), set_n_ids)
 
         if pool is not None:
             self._pool_repo.update(db_apis.get_session(), pool.id,
-                                   provisioning_status=constants.ACTIVE)
+                                provisioning_status=constants.ACTIVE)
         if listeners is not None:
             for listener in listeners:
                 self._listener_repo.update(db_apis.get_session(),
-                                           listener.id,
-                                           provisioning_status=constants.ACTIVE)
+                                        listener.id,
+                                        provisioning_status=constants.ACTIVE)
         if load_balancer is not None:
             self._lb_repo.update(db_apis.get_session(),
-                                 load_balancer.id,
-                                 provisioning_status=constants.ACTIVE)
+                                load_balancer.id,
+                                provisioning_status=constants.ACTIVE)
 
     @tenacity.retry(
         retry=tenacity.retry_if_exception_type(db_exceptions.NoResultFound),
@@ -859,7 +844,7 @@ class A10ControllerWorker(object):
             RETRY_INITIAL_DELAY, RETRY_BACKOFF, RETRY_MAX),
         stop=tenacity.stop_after_attempt(RETRY_ATTEMPTS))
     def batch_update_members(self, old_members, new_members,
-                             updated_members_req):
+                            updated_members_req):
 
         session = db_apis.get_session()
         with session.begin():
@@ -878,13 +863,12 @@ class A10ControllerWorker(object):
             updated_members = [
                 (provider_utils.db_member_to_provider_member(
                     self._member_repo.get(session,
-                                          id=m.get(constants.ID))).to_dict(),
-                 m)
+                                          id=m.get(constants.ID))).to_dict(),m)
                 for m in updated_members]
             provider_old_members = [
                 provider_utils.db_member_to_provider_member(
                     self._member_repo.get(session,
-                                          id=m.get(constants.ID))).to_dict()
+                                        id=m.get(constants.ID))).to_dict()
                 for m in old_members]
             if old_members:
                 pool = self._pool_repo.get(
@@ -915,8 +899,8 @@ class A10ControllerWorker(object):
         if not self._is_batch_valid(old_member_ids, new_member_ids,
                                     updated_member_ids, member_collision_map):
             self._rollback_members(old_member_ids, new_member_ids,
-                                   updated_member_ids, load_balancer,
-                                   listeners, pool)
+                                updated_member_ids, load_balancer,
+                                listeners, pool)
             LOG.warning("Due to a failed batch update caused by duplicate member definitions, "
                         "the members defined in the update are now out-of-sync with the "
                         "ACOS device. Please issue a corrected update or "
