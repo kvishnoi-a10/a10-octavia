@@ -18,6 +18,7 @@ from oslo_log import log as logging
 from requests.exceptions import ConnectionError
 from taskflow import task
 
+from octavia.common import constants
 from octavia.certificates.common.auth.barbican_acl import BarbicanACLAuth
 
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator
@@ -31,7 +32,7 @@ class CheckListenerType(task.Task):
     """Task to check if listener type is TERMINATED_HTTPS"""
 
     def execute(self, listener):
-        if (listener.protocol == 'TERMINATED_HTTPS' or listener.protocol
+        if (listener[constants.PROTOCOL] == 'TERMINATED_HTTPS' or listener[constants.PROTOCOL]
                 == 'https') and listener.tls_certificate_id:
             return True
         else:

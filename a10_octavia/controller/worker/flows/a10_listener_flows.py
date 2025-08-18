@@ -41,7 +41,7 @@ class ListenerFlows(object):
 
         create_listener_flow = linear_flow.Flow(constants.CREATE_LISTENER_FLOW)
         create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
-            requires=[constants.LISTENER]))
+            requires=[constants.LISTENERS]))
         create_listener_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
         create_listener_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
@@ -66,7 +66,7 @@ class ListenerFlows(object):
             requires=[constants.LOADBALANCER, constants.LISTENER,
                       a10constants.VTHUNDER, constants.FLAVOR_DATA]))
         create_listener_flow.add(a10_network_tasks.UpdateVIP(
-            requires=constants.LOADBALANCER))
+            requires=constants.LISTENERS))
         create_listener_flow.add(a10_database_tasks.
                                  MarkLBAndListenerActiveInDB(
                                      requires=[constants.LOADBALANCER,
@@ -115,7 +115,7 @@ class ListenerFlows(object):
             inject={constants.LISTENER: listener}))
         create_listener_flow.add(a10_network_tasks.UpdateVIP(
             name=sf_name + a10constants.UPDATE_VIP_AFTER_ALLOCATION,
-            requires=constants.LOADBALANCER))
+            requires=constants.LISTENERS))
 
         for l7policy in listener.l7policies:
             create_listener_flow.add(
@@ -160,7 +160,7 @@ class ListenerFlows(object):
         """Flow to delete a listener"""
 
         delete_listener_flow = linear_flow.Flow(constants.DELETE_LISTENER_FLOW)
-        delete_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
+        delete_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             requires=constants.LISTENER))
         delete_listener_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
@@ -180,7 +180,7 @@ class ListenerFlows(object):
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
             requires=constants.LISTENER))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
-            requires=constants.LISTENER))
+            requires=constants.PROJECT_ID))
         # delete_listener_flow.add(database_tasks.MarkLBActiveInDB(
         #     requires=constants.LOADBALANCER))
         delete_listener_flow.add(database_tasks.MarkLBActiveInDBByListener(
@@ -191,29 +191,29 @@ class ListenerFlows(object):
             requires=a10constants.VTHUNDER))
         return delete_listener_flow
 
-    def get_cascade_delete_listener_internal_flow(self, listener, listener_name):
+    def get_cascade_delete_listener_internal_flow(self, listener):
         """Create a flow to delete a listener
            (will skip deletion on the amp and marking LB active)
         :returns: The flow for deleting a listener
         """
         delete_listener_flow = linear_flow.Flow(constants.DELETE_LISTENER_FLOW)
+        listener_id = listener[constants.LISTENER_ID]
         delete_listener_flow.add(self.handle_ssl_cert_flow(
             flow_type='delete', listener=listener))
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
-            name='delete_listener_in_db_' + listener_name,
+            name='delete_listener_in_db_' + listener_id,
             requires=constants.LISTENER,
-            rebind={constants.LISTENER: listener_name}))
+            inject={constants.LISTENER: listener}))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
-            name='decrement_listener_quota_' + listener_name,
-            requires=constants.LISTENER,
-            rebind={constants.LISTENER: listener_name}))
+            name='decrement_listener_quota_' + listener_id,
+            requires=constants.PROJECT_ID))
         return delete_listener_flow
 
     def get_delete_rack_listener_flow(self):
         """Flow to delete a rack listener """
 
         delete_listener_flow = linear_flow.Flow(constants.DELETE_LISTENER_FLOW)
-        delete_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
+        delete_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             requires=constants.LISTENER))
         delete_listener_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
@@ -224,7 +224,7 @@ class ListenerFlows(object):
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
             requires=constants.LISTENER))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
-            requires=constants.LISTENER))
+            requires=constants.PROJECT_ID))
         # delete_listener_flow.add(database_tasks.MarkLBActiveInDB(
         #     requires=constants.LOADBALANCER))
         delete_listener_flow.add(database_tasks.MarkLBActiveInDBByListener(
@@ -239,7 +239,7 @@ class ListenerFlows(object):
         """Flow to update a listener"""
 
         update_listener_flow = linear_flow.Flow(constants.UPDATE_LISTENER_FLOW)
-        update_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
+        update_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             requires=[constants.LISTENER]))
         update_listener_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
@@ -275,7 +275,7 @@ class ListenerFlows(object):
 
         create_listener_flow = linear_flow.Flow(constants.CREATE_LISTENER_FLOW)
         create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
-            requires=[constants.LISTENER]))
+            requires=[constants.LISTENERS]))
         create_listener_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))
@@ -347,6 +347,7 @@ class ListenerFlows(object):
         return create_listener_flow
 
     def get_ssl_certificate_create_flow(self, listener=None):
+        # listener_id = listener[constants.LISTENER_ID]
         suffix = 'listener'
         if listener is not None:
             suffix = 'listener_' + listener.id
@@ -375,6 +376,7 @@ class ListenerFlows(object):
         return create_ssl_cert_flow
 
     def get_ssl_certificate_delete_flow(self, listener=None):
+        # listener_id = listener[constants.LISTENER_ID]
         suffix = 'listener'
         if listener is not None:
             suffix = 'listener_' + listener.id

@@ -43,8 +43,8 @@ def get_create_load_balancer_flow(load_balancer, topology, project_id,
 def get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict):
     return LB_FLOWS.get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict)
 
-def get_delete_load_balancer_flow(lb, deleteCompute, cascade):
-    return LB_FLOWS.get_delete_load_balancer_flow(lb, deleteCompute, cascade)
+def get_delete_load_balancer_flow(lb, listeners, deleteCompute, cascade):
+    return LB_FLOWS.get_delete_load_balancer_flow(lb, listeners, deleteCompute, cascade)
 
 def get_update_rack_load_balancer_flow(vthunder_conf, device_dict, topology):
     return LB_FLOWS.get_update_rack_load_balancer_flow(vthunder_conf, device_dict, topology)

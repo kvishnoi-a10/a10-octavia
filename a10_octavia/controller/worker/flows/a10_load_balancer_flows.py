@@ -221,7 +221,7 @@ class LoadBalancerFlows(object):
                 requires=constants.LOADBALANCER))
         return post_create_lb_flow
 
-    def get_delete_load_balancer_flow(self, lb, deleteCompute, cascade):
+    def get_delete_load_balancer_flow(self, lb, listeners, deleteCompute, cascade):
         """Flow to delete load balancer"""
 
         store = {}
@@ -256,7 +256,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(database_tasks.MarkLBAmphoraeHealthBusy(
             requires=constants.LOADBALANCER))
         if cascade:
-            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb)
+            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb, listeners)
             delete_LB_flow.add(pools_listeners_delete)
         delete_LB_flow.add(database_tasks.GetAmphoraeFromLoadbalancer(
             requires=constants.LOADBALANCER_ID,
@@ -1043,7 +1043,7 @@ class LoadBalancerFlows(object):
 
         return delete_lb_vrid_subflow
 
-    def _get_cascade_delete_pools_listeners_flow(self, lb):
+    def _get_cascade_delete_pools_listeners_flow(self, lb, listeners):
         """Sets up an internal delete flow
         Because task flow doesn't support loops we store each pool
         and listener we want to delete in the store part and then rebind
@@ -1088,12 +1088,10 @@ class LoadBalancerFlows(object):
 
         # loop for loadbalancer's listener deletion
         listeners_delete_flow = unordered_flow.Flow('listener_delete_flow')
-        for listener in lb.listeners:
-            listener_name = 'listener_' + listener.id
-            store[listener_name] = listener
+        for listener in listeners:
             listeners_delete_flow.add(
                 self._listener_flows.get_cascade_delete_listener_internal_flow(
-                    listener, listener_name))
+                    listener))
 
         pools_listeners_delete_flow.add(listeners_delete_flow)
         # move UpdateVIPForDelete() out from unordered_flow loop, call it multiple time at the

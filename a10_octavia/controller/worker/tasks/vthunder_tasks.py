@@ -121,6 +121,8 @@ class AmphoraePostVIPPlug(VThunderBaseTask):
         if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
             try:
                 self.axapi_client.system.action.write_memory()
+                # self.axapi_client.system.action.reboot()
+                # time.sleep(30)
                 if CONF.a10_house_keeping.use_periodic_write_memory == 'enable':
                     self.vthunder_repo.update_last_write_mem(
                         db_apis.get_session(),
@@ -391,7 +393,6 @@ class GetValidIPv6Address(VThunderBaseTask):
                 address_list[len(address_list) - 1] = address_list[len(address_list) - 1].strip("]")
             else:
                 address_list = []
-
             interfaces = self.axapi_client.interface.get_list()
             for i in range(len(interfaces['interface']['ethernet-list'])):
                 ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']

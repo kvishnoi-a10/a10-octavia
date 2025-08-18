@@ -79,7 +79,7 @@ class Endpoint(object):
 
     def delete_listener(self, context, listener):
         LOG.info('Deleting listener \'%s\'...', listener[constants.LISTENER_ID])
-        self.worker.delete_listener(listener[constants.LISTENER_ID])
+        self.worker.delete_listener(listener)
 
     def create_pool(self, context, pool):
         LOG.info('Creating pool \'%s\'...', pool.get(constants.POOL_ID))
