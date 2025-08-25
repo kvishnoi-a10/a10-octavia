@@ -127,7 +127,7 @@ class L7PolicyFlows(object):
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
         delete_l7policy_flow.add(l7policy_tasks.DeleteL7Policy(
-            requires=[constants.L7POLICY, a10constants.VTHUNDER]))
+            requires=[constants.L7POLICY, a10constants.VTHUNDER, constants.LISTENERS]))
         delete_l7policy_flow.add(database_tasks.DeleteL7PolicyInDB(
             requires=constants.L7POLICY))
         delete_l7policy_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
@@ -187,6 +187,6 @@ class L7PolicyFlows(object):
         #     rebind={constants.OBJECT: l7policy_name}))
         delete_l7policy_flow.add(l7policy_tasks.DeleteL7Policy(
             name='delete_l7policy_' + l7policy_name,
-            requires=[constants.L7POLICY, a10constants.VTHUNDER],
+            requires=[constants.L7POLICY, a10constants.VTHUNDER, constants.LISTENERS],
             rebind={constants.L7POLICY: l7policy_name}))
         return delete_l7policy_flow
