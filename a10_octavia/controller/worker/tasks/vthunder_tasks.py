@@ -227,8 +227,8 @@ class AllowLoadbalancerForwardWithAnySource(VThunderBaseTask):
     """Task to add wildcat address in allowed_address_pair to allow any SNAT"""
 
     def execute(self, member, amphora):
-        if member.subnet_id:
-            subnet = self.network_driver.get_subnet(member.subnet_id)
+        if member[constants.SUBNET_ID]:
+            subnet = self.network_driver.get_subnet(member[constants.SUBNET_ID])
             if CONF.vthunder.slb_no_snat_support:
                 for amp in amphora:
                     self.network_driver.allow_use_any_source_ip_on_egress(subnet.network_id, amp)
@@ -255,11 +255,15 @@ class AmphoraePostMemberNetworkPlug(VThunderBaseTask):
     """Task to reboot and configure vThunder device"""
 
     @axapi_client_decorator
-    def execute(self, added_ports, loadbalancer, vthunder):
+    def execute(self, updated_ports, loadbalancer, vthunder):
         """Execute get_info routine for a vThunder until it responds."""
         try:
-            amphora_id = loadbalancer.amphorae[0].id
-            if added_ports and amphora_id in added_ports and len(added_ports[amphora_id]) > 0:
+            session = db_apis.get_session()
+            with session.begin():
+                db_lb = self.loadbalancer_repo.get(
+                    session, id=loadbalancer[constants.LOADBALANCER_ID])
+            amphora_id = db_lb.amphorae[0].id
+            if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
                 self.axapi_client.system.action.write_memory()
                 if CONF.a10_house_keeping.use_periodic_write_memory == 'enable':
                     self.vthunder_repo.update_last_write_mem(
@@ -412,13 +416,17 @@ class EnableInterfaceForMembers(VThunderBaseTask):
     """Task to enable an interface associated with a member"""
 
     @axapi_client_decorator
-    def execute(self, added_ports, loadbalancer, vthunder, backup_vthunder=None,
+    def execute(self, updated_ports, loadbalancer, vthunder, backup_vthunder=None,
                 ifnum_address=None):
         """Enable specific interface of amphora"""
         topology = CONF.a10_controller_worker.loadbalancer_topology
-        amphora_id = loadbalancer.amphorae[0].id
+        session = db_apis.get_session()
+        with session.begin():
+            db_lb = self.loadbalancer_repo.get(
+                session, id=loadbalancer[constants.LOADBALANCER_ID])
+        amphora_id = db_lb.amphorae[0].id
         try:
-            if added_ports and amphora_id in added_ports and len(added_ports[amphora_id]) > 0:
+            if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
                 interfaces = self.axapi_client.interface.get_list()
                 # Clear un-matched static IPv6 addresses interfaces
                 for i in range(len(interfaces['interface']['ethernet-list'])):
@@ -1131,40 +1139,40 @@ class TagInterfaceForMember(TagInterfaceBaseTask):
         member_list = member if isinstance(member, list) else [member]
         subnet_list = []
         for member in member_list:
-            if member.subnet_id not in subnet_list:
-                if not member.subnet_id:
+            if member[constants.SUBNET_ID] not in subnet_list:
+                if not member[constants.SUBNET_ID]:
                     LOG.warning("Subnet id argument was not specified during "
                                 "issuance of create command/API call for member %s. "
-                                "Skipping TagInterfaceForMember task", member.id)
+                                "Skipping TagInterfaceForMember task", member[constants.MEMBER_ID])
                     continue
                 try:
-                    vlan_id = self.get_vlan_id(member.subnet_id, False)
+                    vlan_id = self.get_vlan_id(member[constants.SUBNET_ID], False)
                     self.tag_interfaces(vthunder, vlan_id)
-                    subnet_list.append(member.subnet_id)
+                    subnet_list.append(member[constants.SUBNET_ID])
                     LOG.debug("Successfully tagged interface with VLAN id %s for member %s",
-                              str(vlan_id), member.id)
+                              str(vlan_id), member[constants.MEMBER_ID])
                 except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
                     LOG.exception("Failed to tag interface with VLAN id %s for member %s",
-                                  str(vlan_id), member.id)
+                                  str(vlan_id), member[constants.MEMBER_ID])
                     raise e
 
     @axapi_client_decorator_for_revert
     def revert(self, member, vthunder, *args, **kwargs):
         member_list = member if isinstance(member, list) else [member]
         for member in member_list:
-            if not member.subnet_id:
+            if not member[constants.SUBNET_ID]:
                 LOG.warning("Subnet id argument was not specified during "
                             "issuance of create command/API call for member %s. "
-                            "Skipping TagInterfaceForMember task", member.id)
+                            "Skipping TagInterfaceForMember task", member[constants.MEMBER_ID])
                 continue
             try:
                 if vthunder and vthunder.device_network_map:
-                    vlan_id = self.get_vlan_id(member.subnet_id, False)
+                    vlan_id = self.get_vlan_id(member[constants.SUBNET_ID], False)
                     if self.is_vlan_deletable():
                         LOG.warning("Reverting tag interface for member with VLAN id %s", vlan_id)
                         master_device_id = vthunder.device_network_map[0].vcs_device_id
                         for device_obj in vthunder.device_network_map:
-                            self.delete_device_vlan(vlan_id, member.subnet_id, vthunder,
+                            self.delete_device_vlan(vlan_id, member[constants.SUBNET_ID], vthunder,
                                                     device_id=device_obj.vcs_device_id,
                                                     master_device_id=master_device_id)
             except req_exceptions.ConnectionError:
@@ -1481,6 +1489,8 @@ class GetMasterVThunder(VThunderBaseTask):
                 try:
                     attempts = attempts - 1
                     vcs_summary = {}
+                    # pw = self.axapi_client.system.action.get_password()
+                    # LOG.info("vthunder password: %s", pw)
                     vcs_summary = self.axapi_client.system.action.get_vcs_summary_oper()
                     vcs_member_list = vcs_summary['vcs-summary']['oper']['member-list']
                     for i in range(len(vcs_member_list)):

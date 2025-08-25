@@ -64,21 +64,21 @@ class PoolParent(object):
             service_group_temp[template_key] = template_policy
 
         protocol = openstack_mappings.service_group_protocol(
-            self.axapi_client, pool.protocol)
+            self.axapi_client, pool[constants.PROTOCOL])
         lb_method = openstack_mappings.service_group_lb_method(
-            self.axapi_client, pool.lb_algorithm)
+            self.axapi_client, pool['lb_algorithm'])
 
         # Handle options from flavor
         if flavor:
             pool_flavor = flavor.get('service_group')
             if pool_flavor:
                 name_exprs = pool_flavor.get('name_expressions')
-                parsed_exprs = utils.parse_name_expressions(pool.name, name_exprs)
+                parsed_exprs = utils.parse_name_expressions(pool[constants.NAME], name_exprs)
                 pool_flavor.pop('name_expressions', None)
                 pool_args['service_group'].update(pool_flavor)
                 pool_args['service_group'].update(parsed_exprs)
 
-        set_method(pool.id,
+        set_method(pool[constants.POOL_ID],
                    protocol=protocol,
                    lb_method=lb_method,
                    service_group_templates=service_group_temp,
@@ -89,7 +89,7 @@ class PoolParent(object):
     def get_proxy_name(self, pool):
         name = a10constants.PROXY_PROTOCPL_TEMPLATE_NAME
         version = a10constants.PROXY_PROTOCPL_V1
-        if pool.protocol != constants.PROTOCOL_PROXY:
+        if pool[constants.PROTOCOL] != constants.PROTOCOL_PROXY:
             name = a10constants.PROXY_PROTOCPL_V2_TEMPLATE_NAME
             version = a10constants.PROXY_PROTOCPL_V2
 
@@ -140,28 +140,28 @@ class PoolCreate(PoolParent, task.Task):
             if utils.is_proxy_protocol_pool(pool) is True:
                 self.set_proxy(pool, listener)
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to create tcp-proxy/aflex for PROXY protocol pood: %s", pool.id)
+            LOG.exception("Failed to create tcp-proxy/aflex for PROXY protocol pood: %s", pool[constants.POOL_ID])
             raise e
 
         try:
             self.set(self.axapi_client.slb.service_group.create, pool, vthunder, flavor)
-            LOG.debug("Successfully created pool: %s", pool.id)
+            LOG.debug("Successfully created pool: %s", pool[constants.POOL_ID])
             return pool
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to create pool: %s", pool.id)
+            LOG.exception("Failed to create pool: %s", pool[constants.POOL_ID])
             raise e
 
     @axapi_client_decorator_for_revert
     def revert(self, pool, vthunder, flavor=None, listener=None, *args, **kwargs):
-        LOG.warning("Reverting creation of pool: %s", pool.id)
+        LOG.warning("Reverting creation of pool: %s", pool[constants.POOL_ID])
         try:
-            self.axapi_client.slb.service_group.delete(pool.id)
+            self.axapi_client.slb.service_group.delete(pool[constants.POOL_ID])
         except ConnectionError:
             LOG.exception(
                 "Failed to connect A10 Thunder device: %s", vthunder.ip_address)
         except Exception as e:
             LOG.exception("Failed to revert creation of pool: %s due to: %s",
-                          pool.id, str(e))
+                          pool[constants.POOL_ID], str(e))
 
 
 class PoolDelete(PoolParent, task.Task):
@@ -173,13 +173,13 @@ class PoolDelete(PoolParent, task.Task):
             if utils.is_proxy_protocol_pool(pool) is True:
                 self.delete_proxy(pool, listener, proxy_pool_count)
         except (acos_errors.ACOSException, ConnectionError):
-            LOG.exception("Failed to delete tcp-proxy/aflex for PROXY protocol pood: %s", pool.id)
+            LOG.exception("Failed to delete tcp-proxy/aflex for PROXY protocol pood: %s", pool[constants.POOL_ID])
 
         try:
-            self.axapi_client.slb.service_group.delete(pool.id)
-            LOG.debug("Successfully deleted pool: %s", pool.id)
+            self.axapi_client.slb.service_group.delete(pool[constants.POOL_ID])
+            LOG.debug("Successfully deleted pool: %s", pool[constants.POOL_ID])
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to delete pool: %s", pool.id)
+            LOG.exception("Failed to delete pool: %s", pool[constants.POOL_ID])
             raise e
 
 
@@ -188,17 +188,17 @@ class PoolUpdate(PoolParent, task.Task):
 
     @axapi_client_decorator
     def execute(self, pool, vthunder, update_dict={}, flavor=None):
-        pool.__dict__.update(update_dict)
+        pool.update(update_dict)
         try:
             service_group = self.axapi_client.slb.service_group.get(
-                pool.id)['service-group']
+                pool[constants.POOL_ID])['service-group']
             mem_list = service_group.get('member-list')
             health_monitor = service_group.get('health-check')
             self.set(self.axapi_client.slb.service_group.replace, pool, vthunder,
                      mem_list=mem_list, health_monitor=health_monitor, flavor=flavor)
-            LOG.debug("Successfully updated pool: %s", pool.id)
+            LOG.debug("Successfully updated pool: %s", pool[constants.POOL_ID])
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to update pool: %s", pool.id)
+            LOG.exception("Failed to update pool: %s", pool[constants.POOL_ID])
             raise e
 
 
@@ -210,6 +210,6 @@ class PoolToErrorOnRevertTask(lifecycle_tasks.BaseLifecycleTask):
 
     def revert(self, pool, *args, **kwargs):
         try:
-            self.task_utils.mark_pool_prov_status_error(pool.id)
+            self.task_utils.mark_pool_prov_status_error(pool[constants.POOL_ID])
         except Exception as e:
             LOG.exception("Failed to change status due to: %s", e)

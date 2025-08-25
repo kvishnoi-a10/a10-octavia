@@ -158,7 +158,7 @@ class PoolFlows(object):
         delete_pool_flow.add(database_tasks.MarkPoolPendingDeleteInDB(
             requires=constants.POOL_ID))
         delete_pool_flow.add(database_tasks.CountPoolChildrenForQuota(
-            requires=constants.POOL, provides=constants.POOL_CHILD_COUNT))
+            requires=constants.POOL_ID, provides=constants.POOL_CHILD_COUNT))
         # delete_pool_flow.add(model_tasks.DeleteModelObject(
         #     rebind={constants.OBJECT: constants.POOL}))
         # Get VThunder details from database
@@ -261,7 +261,7 @@ class PoolFlows(object):
             requires=a10constants.COMPUTE_BUSY))
 
         update_pool_flow.add(database_tasks.MarkPoolPendingUpdateInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         update_pool_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))
@@ -325,9 +325,8 @@ class PoolFlows(object):
             rebind={constants.POOL: pool_id}))
         delete_pool_flow.add(database_tasks.CountPoolChildrenForQuota(
             name='count_pool_children_for_quota_' + pool_id,
-            requires=constants.POOL,
-            provides=constants.POOL_CHILD_COUNT,
-            rebind={constants.POOL: pool_id}))
+            requires=constants.POOL_ID,
+            provides=constants.POOL_CHILD_COUNT))
         delete_pool_flow.add(virtual_port_tasks.ListenerUpdateForPool(
             name='listener_update_for_pool_' + pool_id,
             requires=[constants.LOADBALANCER, constants.LISTENER, constants.POOL,
@@ -383,7 +382,7 @@ class PoolFlows(object):
         delete_pool_flow.add(database_tasks.MarkPoolPendingDeleteInDB(
             requires=constants.POOL_ID))
         delete_pool_flow.add(database_tasks.CountPoolChildrenForQuota(
-            requires=constants.POOL, provides=constants.POOL_CHILD_COUNT))
+            requires=constants.POOL_ID, provides=constants.POOL_CHILD_COUNT))
         # delete_pool_flow.add(model_tasks.DeleteModelObject(
         #     rebind={constants.OBJECT: constants.POOL}))
         # Get VThunder details from database

@@ -145,7 +145,7 @@ class HealthMonitorFlows(object):
                 requires=constants.POOL_ID,
                 inject={constants.OPERATING_STATUS: constants.NO_MONITOR}))
         delete_hm_flow.add(database_tasks.MarkPoolActiveInDB(
-            requires=constants.POOL))
+            requires=constants.POOL_ID))
         delete_hm_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
             requires=(constants.LOADBALANCER_ID, constants.LISTENERS)))
         delete_hm_flow.add(vthunder_tasks.WriteMemory(

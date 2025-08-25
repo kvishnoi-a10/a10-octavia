@@ -84,15 +84,15 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         for loadbalancer in loadbalancers_list:
             for pool in db_lb.pools:
                 for member in pool.members:
-                    if member[constants.SUBNET_ID] and member in member_list:
+                    if member.subnet_id and member in member_list:
                         member_network = self.network_driver.get_subnet(
-                            member[constants.SUBNET_ID]).network_id
-                        desired_subnet_to_net_map[member[constants.SUBNET_ID]] = (
+                            member.subnet_id).network_id
+                        desired_subnet_to_net_map[member.subnet_id] = (
                             member_network)
                     else:
                         LOG.warning("Subnet id argument was not specified during "
                                     "issuance of create command/API call for member %s. "
-                                    "Skipping interface attachment", member[constants.ID])
+                                    "Skipping interface attachment", member.id)
 
                     #desired_network_ids.update(member_networks)
         desired_network_ids = set(desired_subnet_to_net_map.values())
@@ -1064,6 +1064,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
         super(HandleVRIDFloatingIP, self).__init__(*arg, **kwargs)
 
     def _add_vrid_to_list(self, vrid_list, subnet, owner):
+        LOG.debug("Creating new VRID entry for subnet_id: %s", subnet_id)
         vrid_value = CONF.a10_global.vrid
         subnet_ids = set([s.id for s in subnet]) if isinstance(subnet, list) else [subnet.id]
         for subnet_id in subnet_ids:
@@ -1140,6 +1141,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
         """
         updated_vrid_list = []
         if not subnet:
+            LOG.warning("No subnet provided to HandleVRIDFloatingIP; skipping task.")
             return updated_vrid_list
         vrid_value = CONF.a10_global.vrid
         prev_vrid_value = vrid_list[0].vrid if vrid_list else None
@@ -1150,8 +1152,10 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
             else:
                 conf_floating_ip = CONF.a10_global.vrid_floating_ip
         else:
-            conf_floating_ip = a10_utils.get_vrid_floating_ip_for_project(
-                lb_resource[constants.PROJECT_ID])
+            project_id = lb_resource.get(constants.PROJECT_ID)
+            if not project_id:
+                raise Exception("PROJECT_ID not found in lb_resource")
+            conf_floating_ip = a10_utils.get_vrid_floating_ip_for_project(project_id)
 
         if not conf_floating_ip:
             for vrid in updated_vrid_list:
@@ -1234,9 +1238,8 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
 
     @axapi_client_decorator
     def revert(self, result, vthunder, lb_resource, vrid_list, subnet, *args, **kwargs):
-        LOG.warning(
-            "Reverting VRRP floating IP delta task for lb_resource %s",
-            lb_resource[constants.LOADBALANCER_ID])
+        lb_id = lb_resource.get('id') if isinstance(lb_resource, dict) else getattr(lb_resource, 'id', 'unknown')
+        LOG.warning("Reverting VRRP floating IP delta task for lb_resource %s", lb_id)
         # Delete newly added ports
         for port in self.added_fip_ports:
             try:
@@ -1247,7 +1250,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
                     port.id,
                     str(e))
 
-        vrid_floating_ip_list = [vrid.vrid_floating_ip for vrid in vrid_list]
+        vrid_floating_ip_list = [ip for ip in (vrid.vrid_floating_ip for vrid in vrid_list) if ip]
 
         if isinstance(vrid_floating_ip_list, list):
             vrid_value = CONF.a10_global.vrid
@@ -1405,12 +1408,22 @@ class GetLBResourceSubnet(BaseNetworkTask):
 
     def execute(self, lb_resource):
         #if not hasattr(lb_resource, 'vip_subnet_id'):
-        if not lb_resource[constants.VIP_SUBNET_ID]:
+        # if not lb_resource[constants.VIP_SUBNET_ID]:
             # Special case for load balancers as their vips have the subnet
             # info
-            subnet = self.network_driver.get_subnet(lb_resource[constants.VIP_NETWORK_ID])
-        elif lb_resource[constants.VIP_SUBNET_ID]:
-            subnet = self.network_driver.get_subnet(lb_resource[constants.VIP_SUBNET_ID])
+        #     subnet = self.network_driver.get_subnet(lb_resource[constants.VIP_NETWORK_ID])
+        # elif lb_resource[constants.VIP_SUBNET_ID]:
+        #     subnet = self.network_driver.get_subnet(lb_resource[constants.VIP_SUBNET_ID])
+        # else:
+        #     return
+        if constants.SUBNET_ID not in lb_resource:
+            # Special case for load balancers as their vips have the subnet info
+            vip_subnet_id = lb_resource.get(constants.VIP_SUBNET_ID)
+            if not vip_subnet_id:
+                raise Exception("Missing vip_subnet_id in load balancer resource")
+            subnet = self.network_driver.get_subnet(vip_subnet_id)
+        elif lb_resource[constants.SUBNET_ID]:
+            subnet = self.network_driver.get_subnet(lb_resource[constants.SUBNET_ID])
         else:
             return
         return subnet
@@ -1423,7 +1436,7 @@ class GetAllResourceSubnet(BaseNetworkTask):
         subnet = []
         for member in members:
             if member.subnet_id:
-                subnet.append(self.network_driver.get_subnet(member.subnet_id))
+                subnet.append(self.network_driver.get_subnet(member[constants.SUBNET_ID]))
         return subnet
 
 
@@ -1450,10 +1463,10 @@ class ReserveSubnetAddressForMember(BaseNetworkTask):
                 # The NAT pool addresses is not in member subnet, a10-octavia will allow it but
                 # will not able to reserve address for it. (since we don't know the subnet)
                 LOG.exception("Failed to reserve addresses in NAT pool %s from subnet %s: %s",
-                              nat_flavor['pool_name'], member.subnet_id, str(e))
+                              nat_flavor['pool_name'], member[constants.SUBNET_ID], str(e))
             except Exception as e:
                 LOG.exception("Failed to reserve addresses in NAT pool %s from subnet %s",
-                              nat_flavor['pool_name'], member.subnet_id)
+                              nat_flavor['pool_name'], member[constants.SUBNET_ID])
                 raise e
         return
 
@@ -1578,12 +1591,12 @@ class PlugVipNetworkOnSpare(BaseNetworkTask):
 class ValidateSubnet(BaseNetworkTask):
 
     def execute(self, member):
-        if member.subnet_id:
-            member_subnet = self.network_driver.get_subnet(member.subnet_id)
+        if member[constants.SUBNET_ID]:
+            member_subnet = self.network_driver.get_subnet(member[constants.SUBNET_ID])
             subnet_ip, subnet_mask = a10_utils.get_net_info_from_cidr(member_subnet.cidr,
                                                                       member_subnet.ip_version)
             if not a10_utils.check_ip_in_subnet_range(
-                    member.ip_address, subnet_ip, subnet_mask, member_subnet.ip_version,
+                    member.get('address'), subnet_ip, subnet_mask, member_subnet.ip_version,
                     member_subnet.cidr):
                 raise exceptions.IPAddressNotInSubnetRangeError(
-                    member.ip_address, member_subnet.cidr)
+                    member.get('address'), member_subnet.cidr)

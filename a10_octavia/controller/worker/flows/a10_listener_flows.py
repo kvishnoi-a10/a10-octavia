@@ -38,7 +38,6 @@ class ListenerFlows(object):
 
     def get_create_listener_flow(self, topology):
         """Flow to create a listener"""
-
         create_listener_flow = linear_flow.Flow(constants.CREATE_LISTENER_FLOW)
         create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
             requires=[constants.LISTENERS]))
@@ -141,8 +140,9 @@ class ListenerFlows(object):
             a10constants.LISTENER_TYPE_DECIDER_FLOW)
 
         if listener is not None:
+            listener_id = listener[constants.LISTENER_ID]
             check_ssl = cert_tasks.CheckListenerType(
-                name='check_listener_type_' + listener.id,
+                name='check_listener_type_' + listener_id,
                 requires=constants.LISTENER,
                 inject={constants.LISTENER: listener})
         else:
@@ -347,10 +347,10 @@ class ListenerFlows(object):
         return create_listener_flow
 
     def get_ssl_certificate_create_flow(self, listener=None):
-        # listener_id = listener[constants.LISTENER_ID]
         suffix = 'listener'
         if listener is not None:
-            suffix = 'listener_' + listener.id
+            listener_id = listener[constants.LISTENER_ID]
+            suffix = 'listener_' + listener_id
 
         create_ssl_cert_flow = linear_flow.Flow(
             a10constants.CREATE_SSL_CERT_FLOW + suffix)
@@ -376,10 +376,10 @@ class ListenerFlows(object):
         return create_ssl_cert_flow
 
     def get_ssl_certificate_delete_flow(self, listener=None):
-        # listener_id = listener[constants.LISTENER_ID]
         suffix = 'listener'
         if listener is not None:
-            suffix = 'listener_' + listener.id
+            listener_id = listener[constants.LISTENER_ID]
+            suffix = 'listener_' + listener_id
 
         delete_ssl_cert_flow = linear_flow.Flow(
             a10constants.DELETE_SSL_CERT_FLOW)
@@ -414,7 +414,8 @@ class ListenerFlows(object):
     def get_ssl_certificate_update_flow(self, listener=None):
         suffix = 'listener'
         if listener is not None:
-            suffix = 'listener_' + listener.id
+            listener_id = listener[constants.LISTENER_ID]
+            suffix = 'listener_' + listener_id
 
         update_ssl_cert_flow = linear_flow.Flow(
             a10constants.UPDATE_SSL_CERT_FLOW + suffix)

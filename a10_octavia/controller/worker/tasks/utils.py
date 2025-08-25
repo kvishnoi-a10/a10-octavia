@@ -50,28 +50,28 @@ def get_cert_data(barbican_client, listener):
 
 def get_sess_pers_templates(pool):
     c_pers, s_pers, sp = None, None, None
-    if pool and pool.session_persistence:
-        sp = pool.session_persistence
-        if hasattr(pool.session_persistence, 'to_dict'):
-            sp = pool.session_persistence.to_dict()
+    if pool and pool['session_persistence']:
+        sp = pool['session_persistence']
+        if hasattr(pool['session_persistence'], 'to_dict'):
+            sp = pool['session_persistence'].to_dict()
         if sp['type'] == 'HTTP_COOKIE' or sp['type'] == 'APP_COOKIE':
-            c_pers = pool.id
+            c_pers = pool[constants.POOL_ID]
         elif sp['type'] == 'SOURCE_IP':
-            s_pers = pool.id
+            s_pers = pool[constants.POOL_ID]
     return c_pers, s_pers
 
 
 def is_proxy_protocol_pool(pool):
-    if pool.protocol == constants.PROTOCOL_PROXY or (
-            pool.protocol == lib_consts.PROTOCOL_PROXYV2):
+    if pool[constants.PROTOCOL] == constants.PROTOCOL_PROXY or (
+            pool[constants.PROTOCOL] == lib_consts.PROTOCOL_PROXYV2):
         return True
     return False
 
 
 def proxy_protocol_use_aflex(listener, pool):
-    if pool.protocol == constants.PROTOCOL_PROXY:
-        if listener is not None and (listener.protocol == constants.PROTOCOL_TCP or
-                                     listener.protocol == 'tcp'):
+    if pool[constants.PROTOCOL] == constants.PROTOCOL_PROXY:
+        if listener is not None and (listener[constants.PROTOCOL] == constants.PROTOCOL_TCP or
+                                     listener[constants.PROTOCOL] == 'tcp'):
             use_aflex_proxy = CONF.service_group.use_aflex_proxy
             if use_aflex_proxy and use_aflex_proxy is True:
                 return True
@@ -83,13 +83,13 @@ def get_tcp_proxy_template(listener, pool):
     aflex = None
     if pool is None:
         return tcp_proxy, aflex
-    if pool.provisioning_status != constants.PENDING_DELETE and (
+    if pool.get(constants.PROVISIONING_STATUS) != constants.PENDING_DELETE and (
             is_proxy_protocol_pool(pool) is True):
         if proxy_protocol_use_aflex(listener, pool) is True:
             aflex = a10constants.PROXY_PROTOCPL_AFLEX_NAME
         else:
             tcp_proxy = a10constants.PROXY_PROTOCPL_TEMPLATE_NAME
-            if pool.protocol != constants.PROTOCOL_PROXY:
+            if pool[constants.PROTOCOL] != constants.PROTOCOL_PROXY:
                 tcp_proxy = a10constants.PROXY_PROTOCPL_V2_TEMPLATE_NAME
     return tcp_proxy, aflex
 
@@ -187,7 +187,7 @@ def attribute_search(lb_resource, attr_name):
 
 
 def get_member_server_name(axapi_client, member, raise_not_found=True):
-    default_name = '{}_{}'.format(member.project_id[:5], member.ip_address.replace('.', '_'))
+    default_name = '{}_{}'.format(member[constants.PROJECT_ID][:5], member[constants.ADDRESS].replace('.', '_'))
     server_name = default_name
     try:
         server_name = axapi_client.slb.server.get(server_name)
@@ -195,13 +195,13 @@ def get_member_server_name(axapi_client, member, raise_not_found=True):
         # Backwards compatability with a10-neutron-lbaas
         if CONF.a10_global.use_parent_partition:
             try:
-                parent_project_id = a10_utils.get_parent_project(member.project_id)
+                parent_project_id = a10_utils.get_parent_project(member[constants.PROJECT_ID])
                 server_name = '_{}_{}_neutron'.format(parent_project_id[:5],
-                                                      member.ip_address.replace('.', '_'))
+                                                      member[constants.ADDRESS].replace('.', '_'))
                 server_name = axapi_client.slb.server.get(server_name)
             except (acos_errors.NotFound):
-                server_name = '_{}_{}_neutron'.format(member.project_id[:5],
-                                                      member.ip_address.replace('.', '_'))
+                server_name = '_{}_{}_neutron'.format(member[constants.PROJECT_ID][:5],
+                                                      member[constants.ADDRESS].replace('.', '_'))
                 try:
                     server_name = axapi_client.slb.server.get(server_name)
                 except (acos_errors.NotFound) as e:
