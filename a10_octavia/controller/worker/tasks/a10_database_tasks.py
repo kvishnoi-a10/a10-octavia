@@ -190,6 +190,15 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
     def execute(self, loadbalancer, master_amphora_status=True):
         loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
         with db_apis.session().begin() as session:
+            # vthunder = self.vthunder_repo.get_vthunder_from_lb(
+            #     session, loadbalancer_id)
+            # if vthunder.password != CONF.vthunder.default_vthunder_password:
+            #     updated_password = CONF.vthunder.default_vthunder_password
+            #     self.vthunder_repo.update(
+            #             session,
+            #             vthunder.id,
+            #             password=updated_password,
+            #             updated_at=datetime.utcnow())
             vthunder = self.vthunder_repo.get_vthunder_from_lb(
                 session, loadbalancer_id)
             if not master_amphora_status:
@@ -600,7 +609,7 @@ class CheckVLANCanBeDeletedParent(object):
             self.member_repo.model_class).filter(
             self.member_repo.model_class.project_id == project_id).all()
         for member in members:
-            if member.subnet_id == subnet_id:
+            if member[constants.SUBNET_ID] == subnet_id:
                 subnet_usage_count += 1
 
         if is_vip and subnet_usage_count == 1:
@@ -627,7 +636,7 @@ class CheckMemberVLANCanBeDeleted(
 
     def execute(self, member):
         return self.is_vlan_deletable(
-            member.project_id, member.subnet_id, False)
+            member[constants.PROJECT_ID], member[constants.SUBNET_ID], False)
 
 
 class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
@@ -706,10 +715,10 @@ class PoolCountforIP(BaseDatabaseTask):
             with db_apis.session().begin() as session:
                 if use_device_flavor:
                     return self.member_repo.get_pool_count_by_ip_on_thunder(
-                        session, member.ip_address, pools)
+                        session, member[constants.ADDRESS], pools)
                 else:
                     return self.member_repo.get_pool_count_by_ip(
-                        session, member.ip_address, member.project_id)
+                        session, member[constants.ADDRESS], member[constants.PROJECT_ID])
         except Exception as e:
             LOG.exception(
                 "Failed to get pool count with same IP address: %s",
@@ -732,19 +741,19 @@ class GetSubnetForDeletionInPool(BaseDatabaseTask):
             subnet_list = []
             member_subnet = []
             for member in member_list:
-                if member.subnet_id not in member_subnet:
+                if member[constants.SUBNET_ID] not in member_subnet:
                     with db_apis.session().begin() as session:
                         if use_device_flavor:
                             pool_count_subnet = self.member_repo.get_pool_count_subnet_on_thunder(
-                                session, pools, member.subnet_id)
+                                session, pools, member[constants.SUBNET_ID])
                         else:
                             pool_count_subnet = self.member_repo.get_pool_count_subnet(
-                                session, partition_project_list, member.subnet_id)
+                                session, partition_project_list, member[constants.SUBNET_ID])
                         lb_count_subnet = self.loadbalancer_repo.get_lb_count_by_subnet(
-                            session, partition_project_list, member.subnet_id)
+                            session, partition_project_list, member[constants.SUBNET_ID])
                     if pool_count_subnet <= 1 and lb_count_subnet == 0:
-                        subnet_list.append(member.subnet_id)
-                    member_subnet.append(member.subnet_id)
+                        subnet_list.append(member[constants.SUBNET_ID])
+                    member_subnet.append(member[constants.SUBNET_ID])
             return subnet_list
         except Exception as e:
             LOG.exception("Failed to get subnet list for members: %s", str(e))
@@ -1476,7 +1485,7 @@ class GetPoolListener(BaseDatabaseTask):
         if not pool:
             return None
         with db_apis.session().begin() as session:
-            return self.listener_repo.get_listener_by_default_pool(session, pool.id)
+            return self.listener_repo.get_listener_by_default_pool(session, pool[constants.ID])
 
 
 class GetProxyProtocolPoolCount(BaseDatabaseTask):
