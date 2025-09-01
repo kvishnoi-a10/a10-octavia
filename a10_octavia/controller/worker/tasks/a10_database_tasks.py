@@ -190,15 +190,15 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
     def execute(self, loadbalancer, master_amphora_status=True):
         loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
         with db_apis.session().begin() as session:
-            # vthunder = self.vthunder_repo.get_vthunder_from_lb(
-            #     session, loadbalancer_id)
-            # if vthunder.password != CONF.vthunder.default_vthunder_password:
-            #     updated_password = CONF.vthunder.default_vthunder_password
-            #     self.vthunder_repo.update(
-            #             session,
-            #             vthunder.id,
-            #             password=updated_password,
-            #             updated_at=datetime.utcnow())
+            vthunder = self.vthunder_repo.get_vthunder_from_lb(
+                session, loadbalancer_id)
+            if vthunder.password != CONF.vthunder.default_vthunder_password:
+                updated_password = CONF.vthunder.default_vthunder_password
+                self.vthunder_repo.update(
+                        session,
+                        vthunder.id,
+                        password=updated_password,
+                        updated_at=datetime.utcnow())
             vthunder = self.vthunder_repo.get_vthunder_from_lb(
                 session, loadbalancer_id)
             if not master_amphora_status:

@@ -965,7 +965,7 @@ class A10ControllerWorker(object):
                               a10constants.LB_COUNT_THUNDER: None,
                               a10constants.MEMBER_COUNT_THUNDER: None})
                 batch_update_members_tf = self.run_flow(flow_utils.get_batch_update_members_flow,
-                                                        provider_old_members, new_members, updated_member_ids, topology,
+                                                        provider_old_members, new_members, updated_members, topology,
                                                         store=store)
                 self._register_flow_notify_handler(batch_update_members_tf,
                                                    provider_lb[constants.PROJECT_ID], True,
@@ -973,7 +973,7 @@ class A10ControllerWorker(object):
             
             batch_update_members_tf.run()
         finally:
-            self._set_vthunder_available(provider_lb[constants.PROJECT_ID], True, ctx_flags, load_balancer)
+            self._set_vthunder_available(provider_lb[constants.PROJECT_ID], True, ctx_flags, provider_lb)
 
     def update_member(self, member, member_updates):
         """Updates a pool member.

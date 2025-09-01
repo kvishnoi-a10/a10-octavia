@@ -1292,44 +1292,46 @@ class MemberFlows(object):
                 inject={constants.MEMBERS: [m[0] for m in updated_members]}))
         for m, um in updated_members:
             um.pop('id', None)
+            member_id = m.get(constants.ID) or m.get(constants.MEMBER_ID)
+
             batch_update_members_flow.add(database_tasks.MarkMemberPendingUpdateInDB(
                 inject={constants.MEMBER: m},
-                name='mark-member-pending-update-in-db-' + m[constants.MEMBER_ID]))
+                name='mark-member-pending-update-in-db-' + member_id))
             if CONF.a10_global.validate_subnet:
                 batch_update_members_flow.add(a10_network_tasks.ValidateSubnet(
-                    name='validate-subnet' + m[constants.MEMBER_ID],
+                    name='validate-subnet' + member_id,
                     inject={constants.MEMBER: m}))
             batch_update_members_flow.add(a10_network_tasks.GetLBResourceSubnet(
                 name='{flow}-{id}'.format(
-                    id=m[constants.MEMBER_ID], flow=a10constants.GET_LB_RESOURCE_SUBNET),
+                    id=member_id, flow=a10constants.GET_LB_RESOURCE_SUBNET),
                 inject={a10constants.LB_RESOURCE: m},
                 provides=constants.SUBNET))
             batch_update_members_flow.add(a10_database_tasks.GetLoadbalancersInProjectBySubnet(
-                name='get-lb-in-project-by-subnet' + m[constants.MEMBER_ID],
+                name='get-lb-in-project-by-subnet' + member_id,
                 requires=[constants.SUBNET, a10constants.PARTITION_PROJECT_LIST],
                 provides=a10constants.LOADBALANCERS_LIST))
             batch_update_members_flow.add(a10_database_tasks.CheckForL2DSRFlavor(
-                name='check-for-L2DSR' + m[constants.MEMBER_ID],
+                name='check-for-L2DSR' + member_id,
                 rebind={a10constants.LB_RESOURCE: a10constants.LOADBALANCERS_LIST},
                 provides=a10constants.L2DSR_FLAVOR))
             batch_update_members_flow.add(a10_database_tasks.CountLoadbalancersInProjectBySubnet(
-                name='count-lbs-in-project-by-subnet' + m[constants.MEMBER_ID],
+                name='count-lbs-in-project-by-subnet' + member_id,
                 requires=[constants.SUBNET, a10constants.PARTITION_PROJECT_LIST],
                 provides=a10constants.LB_COUNT_SUBNET))
             batch_update_members_flow.add(vthunder_tasks.UpdateLoadbalancerForwardWithAnySource(
-                name='update-lb-forward-with-any-source' + m[constants.MEMBER_ID],
+                name='update-lb-forward-with-any-source' + member_id,
                 requires=(constants.SUBNET, constants.AMPHORA,
                           a10constants.LB_COUNT_SUBNET, a10constants.L2DSR_FLAVOR)))
             batch_update_members_flow.add(server_tasks.MemberUpdate(
-                name='member-update' + m[constants.MEMBER_ID],
+                name='member-update' + member_id,
                 inject={constants.MEMBER: m},
                 requires=(constants.MEMBER, a10constants.VTHUNDER,
                           constants.POOL, constants.FLAVOR)))
             batch_update_members_flow.add(database_tasks.UpdateMemberInDB(
-                name='update-member-in-db' + m[constants.MEMBER_ID],
+                name='update-member-in-db' + member_id,
                 inject={constants.MEMBER: m, constants.UPDATE_DICT: um}))
             batch_update_members_flow.add(database_tasks.MarkMemberActiveInDB(
-                name='mark-member-active-in-db' + m[constants.MEMBER_ID],
+                name='mark-member-active-in-db' + member_id,
                 inject={constants.MEMBER: m}))
         batch_update_members_flow.add(a10_database_tasks.GetLoadBalancerListByProjectID(
             requires=a10constants.VTHUNDER,
