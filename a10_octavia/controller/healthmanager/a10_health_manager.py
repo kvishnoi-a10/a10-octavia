@@ -104,7 +104,8 @@ class A10HealthManager(health_manager.HealthManager):
 
             if vthunder is None:
                 db_session = db_apis.get_session()
-                self.vthunder_repo.unset_vthunder_busy_health_state(db_session)
+                LOG.debug("******unset thunder health state******")
+                # self.vthunder_repo.unset_vthunder_busy_health_state(db_session)
                 break
 
             LOG.info("Stale vThunder's id is: %s", vthunder.vthunder_id)
