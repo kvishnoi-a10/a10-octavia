@@ -34,17 +34,23 @@ LOG = logging.getLogger(__name__)
 
 def get_cert_data(barbican_client, listener):
     cert_data = Certificate()
-    cert_ref = listener.tls_certificate_id
-    cert_containers = barbican_client.containers.list()
-    for cert_container in cert_containers:
-        if cert_container.container_ref == cert_ref:
-            cert_data = Certificate(cert_filename=cert_container.certificate.name,
-                                    key_filename=cert_container.private_key.name,
-                                    cert_content=cert_container.certificate.payload,
-                                    key_content=cert_container.private_key.payload,
-                                    key_pass=cert_container.private_key_passphrase,
-                                    template_name=listener.id)
-    LOG.info("Secret container not found %s", cert_ref)
+    cert_ref = listener.get(constants.TLS_CERTIFICATE_ID)
+    LOG.info("Cert ID: %s", cert_ref)
+
+    try:
+        cert_container = barbican_client.containers.get(container_ref=cert_ref)
+        cert_data = Certificate(
+            cert_filename=cert_container.certificate.name,
+            key_filename=cert_container.private_key.name,
+            cert_content=cert_container.certificate.payload,
+            key_content=cert_container.private_key.payload,
+            key_pass=cert_container.private_key_passphrase,
+            template_name=listener.get(constants.ID))
+        LOG.info("Secret container found: %s", cert_ref)
+
+    except Exception as e:
+        LOG.warning("Secret container not found or failed to retrieve %s: %s", cert_ref, str(e))
+
     return cert_data
 
 
@@ -187,7 +193,8 @@ def attribute_search(lb_resource, attr_name):
 
 
 def get_member_server_name(axapi_client, member, raise_not_found=True):
-    default_name = '{}_{}'.format(member[constants.PROJECT_ID][:5], member[constants.ADDRESS].replace('.', '_'))
+    ip = member.get(constants.ADDRESS) or member.get(constants.IP_ADDRESS)
+    default_name = '{}_{}'.format(member[constants.PROJECT_ID][:5], ip.replace('.', '_'))
     server_name = default_name
     try:
         server_name = axapi_client.slb.server.get(server_name)
@@ -197,11 +204,11 @@ def get_member_server_name(axapi_client, member, raise_not_found=True):
             try:
                 parent_project_id = a10_utils.get_parent_project(member[constants.PROJECT_ID])
                 server_name = '_{}_{}_neutron'.format(parent_project_id[:5],
-                                                      member[constants.ADDRESS].replace('.', '_'))
+                                                      ip.replace('.', '_'))
                 server_name = axapi_client.slb.server.get(server_name)
             except (acos_errors.NotFound):
                 server_name = '_{}_{}_neutron'.format(member[constants.PROJECT_ID][:5],
-                                                      member[constants.ADDRESS].replace('.', '_'))
+                                                      ip.replace('.', '_'))
                 try:
                     server_name = axapi_client.slb.server.get(server_name)
                 except (acos_errors.NotFound) as e:

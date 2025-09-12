@@ -24,7 +24,8 @@ from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.tasks import a10_database_tasks
 from a10_octavia.controller.worker.tasks import health_monitor_tasks
 from a10_octavia.controller.worker.tasks import vthunder_tasks
-
+from oslo_log import log as logging
+LOG = logging.getLogger(__name__)
 
 class HealthMonitorFlows(object):
 
@@ -55,7 +56,7 @@ class HealthMonitorFlows(object):
             rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
             provides=constants.FLAVOR))
         create_hm_flow.add(health_monitor_tasks.CreateAndAssociateHealthMonitor(
-            requires=[constants.LISTENERS, constants.HEALTH_MON, a10constants.VTHUNDER,
+            requires=[constants.LISTENERS, constants.HEALTH_MON,constants.POOL, a10constants.VTHUNDER,
                       constants.FLAVOR]))
         create_hm_flow.add(database_tasks.MarkHealthMonitorActiveInDB(
             requires=constants.HEALTH_MON))
@@ -73,12 +74,12 @@ class HealthMonitorFlows(object):
             requires=(a10constants.VTHUNDER)))
         return create_hm_flow
 
-    def get_fully_populated_create_health_monitor_flow(self, topology, hm):
+    def get_fully_populated_create_health_monitor_flow(self, topology, hm, pool):
         """Create health monitor flow for fully populated loadbalancer creation
 
         :returns: The flow for creating a health monitor
         """
-        sf_name = constants.CREATE_HEALTH_MONITOR_FLOW + '_' + hm.id
+        sf_name = constants.CREATE_HEALTH_MONITOR_FLOW + '_' + hm.get(constants.HEALTHMONITOR_ID)
         create_hm_flow = linear_flow.Flow(sf_name)
         create_hm_flow.add(health_monitor_tasks.HealthMonitorToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
@@ -100,9 +101,9 @@ class HealthMonitorFlows(object):
             provides=constants.FLAVOR))
         create_hm_flow.add(health_monitor_tasks.CreateAndAssociateHealthMonitor(
             name=sf_name + a10constants.FULLY_POPULATED_CREATE_HM,
-            requires=[constants.LISTENERS, constants.HEALTH_MON, a10constants.VTHUNDER,
+            requires=[constants.LISTENERS, constants.HEALTH_MON,constants.POOL, a10constants.VTHUNDER,
                       constants.FLAVOR],
-            inject={constants.HEALTH_MON: hm, constants.LISTENERS: None}))
+            inject={constants.HEALTH_MON: hm, constants.LISTENERS: None, constants.POOL: pool}))
         create_hm_flow.add(database_tasks.MarkHealthMonitorActiveInDB(
             name=sf_name + a10constants.FULLY_POPULATED_MARK_HM_ACTIVE,
             requires=constants.HEALTH_MON,
@@ -157,10 +158,16 @@ class HealthMonitorFlows(object):
     def get_delete_health_monitor_vthunder_subflow(self, health_mon=constants.HEALTH_MON):
         delete_hm_vthunder_subflow = linear_flow.Flow(
             a10constants.DELETE_HEALTH_MONITOR_VTHUNDER_SUBFLOW)
-        delete_hm_vthunder_subflow.add(health_monitor_tasks.DeleteHealthMonitor(
-            name="delete_health_monitor_" + health_mon,
+        if isinstance(health_mon, dict):
+            delete_hm_vthunder_subflow.add(health_monitor_tasks.DeleteHealthMonitor(
+            name="delete_health_monitor_" + health_mon.get(constants.ID),
             requires=[constants.HEALTH_MON, a10constants.VTHUNDER],
-            rebind={constants.HEALTH_MON: health_mon}))
+            inject={constants.HEALTH_MON: health_mon}))
+        else:
+            delete_hm_vthunder_subflow.add(health_monitor_tasks.DeleteHealthMonitor(
+                name="delete_health_monitor",
+                requires=[constants.HEALTH_MON, a10constants.VTHUNDER],
+                rebind={constants.HEALTH_MON: health_mon}))
         return delete_hm_vthunder_subflow
 
     def get_update_health_monitor_flow(self, topology):

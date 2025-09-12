@@ -70,7 +70,6 @@ class LoadBalancerFlows(object):
     def get_create_load_balancer_flow(self, load_balancer, topology, project_id,
                                       listeners=None, pools=None):
         """Flow to create a load balancer"""
-        
         load_balancer_id = load_balancer[lib_consts.LOADBALANCER_ID]
         f_name = constants.CREATE_LOADBALANCER_FLOW
         lb_create_flow = linear_flow.Flow(f_name)
@@ -126,7 +125,7 @@ class LoadBalancerFlows(object):
         if pools:
             for pool in pools:
                 lb_create_flow.add(self._pool_flows.get_fully_populated_create_pool_flow(
-                    topology, pool, vthunder_flow=True))
+                    topology, pool.to_dict(), vthunder_flow=True))
 
         if listeners:
             sf_name = a10constants.FULLY_POPULATED_LISTENER_CREATE
@@ -743,12 +742,10 @@ class LoadBalancerFlows(object):
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER,
                       constants.FLAVOR_DATA),
             provides=a10constants.STATUS))
-
         if pools:
             for pool in pools:
                 lb_create_flow.add(self._pool_flows.get_fully_populated_create_pool_flow(
                     topology, pool, vthunder_conf=vthunder_conf, device_dict=device_dict))
-
         if listeners:
             sf_name = a10constants.FULLY_POPULATED_LISTENER_CREATE
             for listener in listeners:
@@ -773,7 +770,7 @@ class LoadBalancerFlows(object):
             )
         return lb_create_flow
 
-    def get_delete_rack_vthunder_load_balancer_flow(self, lb, cascade, vthunder_conf, device_dict):
+    def get_delete_rack_vthunder_load_balancer_flow(self, lb, cascade, listeners, vthunder_conf, device_dict):
         """Flow to delete rack load balancer"""
 
         store = {}
@@ -803,7 +800,7 @@ class LoadBalancerFlows(object):
                       a10constants.DEVICE_CONFIG_DICT, constants.FLAVOR_DATA),
             provides=(a10constants.VTHUNDER_CONFIG, a10constants.USE_DEVICE_FLAVOR)))
         if cascade:
-            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb)
+            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb,listeners)
             delete_LB_flow.add(pools_listeners_delete)
         delete_LB_flow.add(a10_network_tasks.GetLBResourceSubnet(
             rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
@@ -865,7 +862,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(a10_database_tasks.SetThunderUpdatedAt(
             name=a10constants.SET_THUNDER_UPDATE_AT,
             requires=a10constants.VTHUNDER))
-        if lb.topology == "ACTIVE_STANDBY":
+        if lb.get('topology') == "ACTIVE_STANDBY":
             delete_LB_flow.add(a10_database_tasks.GetBackupVThunderByLoadBalancer(
                 requires=constants.LOADBALANCER,
                 provides=a10constants.BACKUP_VTHUNDER))
@@ -1040,7 +1037,7 @@ class LoadBalancerFlows(object):
 
         return delete_lb_vrid_subflow
 
-    def _get_cascade_delete_pools_listeners_flow(self, lb):
+    def _get_cascade_delete_pools_listeners_flow(self, lb, listeners):
         """Sets up an internal delete flow
         Because task flow doesn't support loops we store each pool
         and listener we want to delete in the store part and then rebind
@@ -1052,50 +1049,50 @@ class LoadBalancerFlows(object):
         store = {}
         # loop for loadbalancer's l7policy deletion
         l7policy_delete_flow = None
-        for listener in lb.listeners:
+        for listener in lb.get(constants.LISTENERS):
             l7policy_delete_flow = linear_flow.Flow('l7policy_delete_flow')
-            for l7policy in listener.l7policies:
-                l7policy_name = 'l7policy_' + l7policy.id
+            for l7policy in listener.get(constants.L7POLICIES):
+                l7policy[constants.L7POLICY_ID] = l7policy.get(constants.ID)
+                l7policy_name = 'l7policy_' + l7policy[constants.L7POLICY_ID]
                 store[l7policy_name] = l7policy
                 l7policy_delete_flow.add(
-                    self._l7policy_flows.get_cascade_delete_l7policy_internal_flow(l7policy_name))
+                    self._l7policy_flows.get_cascade_delete_l7policy_internal_flow(l7policy,listeners))
         if l7policy_delete_flow:
             pools_listeners_delete_flow.add(l7policy_delete_flow)
 
         # loop for loadbalancer's pool deletion
-        for pool in lb.pools:
-            pool_name = 'pool' + pool.id
-            members = pool.members
+        for pool in lb.get(constants.POOLS):
+            pool_id = pool.get(constants.ID)
+            pool_name = 'pool' + pool_id
+            members = pool.get(constants.MEMBERS)
             store[pool_name] = pool
-            listeners = pool.listeners
+            listeners_obj = pool.get(constants.LISTENERS)
             default_listener = None
-            pool_listener_name = 'pool_listener' + pool.id
-            if listeners:
-                default_listener = pool.listeners[0]
+            pool_listener_name = 'pool_listener' + pool_id
+            if listeners_obj:
+                default_listener = pool.get(constants.LISTENERS)[0]
             store[pool_listener_name] = default_listener
             health_mon = None
-            health_monitor = pool.health_monitor
+            health_monitor = pool.get(constants.HEALTH_MONITOR)
             if health_monitor is not None:
-                health_mon = 'health_mon' + health_monitor.id
+                health_mon = 'health_mon' + health_monitor.get(constants.ID)
                 store[health_mon] = health_monitor
             (pool_delete, pool_store) = self._pool_flows.get_cascade_delete_pool_internal_flow(
-                pool_name, members, pool_listener_name, health_mon)
+                pool, members, default_listener, health_monitor)
             store.update(pool_store)
             pools_listeners_delete_flow.add(pool_delete)
 
         # loop for loadbalancer's listener deletion
         listeners_delete_flow = unordered_flow.Flow('listener_delete_flow')
-        for listener in lb.listeners:
-            listener_name = 'listener_' + listener.id
-            store[listener_name] = listener
+        for listener in listeners:
             listeners_delete_flow.add(
                 self._listener_flows.get_cascade_delete_listener_internal_flow(
-                    listener, listener_name))
+                    listener))
 
         pools_listeners_delete_flow.add(listeners_delete_flow)
         # move UpdateVIPForDelete() out from unordered_flow loop, call it multiple time at the
         # same time will add/del same rules at the same time and causing error from neutron.
-        if lb.amphorae:
+        if lb.get(constants.AMPHORAE):
             pools_listeners_delete_flow.add(a10_database_tasks.GetLatestLoadBalancer(
                 requires=constants.LOADBALANCER,
                 provides=constants.LOADBALANCER))

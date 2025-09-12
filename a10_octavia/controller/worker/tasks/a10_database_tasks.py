@@ -637,7 +637,7 @@ class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
                                         loadbalancer[constants.LOADBALANCER_ID],
                                         provisioning_status=constants.ACTIVE)
             self.listener_repo.prov_status_active_if_not_error(
-                session, listener[constants.LISTENER_ID])
+                session, (listener.get(constants.LISTENER_ID) or listener.get(constants.ID)))
 
     def revert(self, loadbalancer, listener, *args, **kwargs):
         """Mark the load balancer and listener in error state"""
@@ -653,12 +653,12 @@ class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 self.listener_repo.update(session,
-                                        id=listener[constants.LISTENER_ID],
+                                        id=(listener.get(constants.LISTENER_ID) or listener.get(constants.ID)),
                                         provisioning_status=constants.ERROR)
         except Exception as e:
             LOG.error("Failed to update listener %(list) "
                       "provisioning status to ERROR due to: "
-                      "%(except)s", {'list': listener[constants.LISTENER_ID],'except':e})
+                      "%(except)s", {'list': (listener.get(constants.LISTENER_ID) or listener.get(constants.ID)),'except':e})
 
 
 # class GetVRIDForLBResourceSubnet(BaseDatabaseTask):
@@ -687,8 +687,8 @@ class CountMembersWithIPPortProtocol(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 return self.member_repo.get_member_count_by_ip_address_port_protocol(
-                    session, member[constants.ADDRESS], member[constants.PROJECT_ID],
-                    member.get('protocol_port'), pool[constants.PROTOCOL])
+                    session,( member.get(constants.ADDRESS) or member.get('ip-address')), member[constants.PROJECT_ID],
+                    member.get('protocol_port'), pool.get(constants.PROTOCOL))
         except Exception as e:
             LOG.exception(
                 "Failed to get count of members with given IP fnd port for a pool: %s",
@@ -705,7 +705,7 @@ class PoolCountforIP(BaseDatabaseTask):
                         session, member[constants.ADDRESS], pools)
                 else:
                     return self.member_repo.get_pool_count_by_ip(
-                        session, member[constants.ADDRESS], member[constants.PROJECT_ID])
+                        session, (member.get(constants.ADDRESS) or member.get('ip-address')), member[constants.PROJECT_ID])
         except Exception as e:
             LOG.exception(
                 "Failed to get pool count with same IP address: %s",
@@ -728,19 +728,19 @@ class GetSubnetForDeletionInPool(BaseDatabaseTask):
             subnet_list = []
             member_subnet = []
             for member in member_list:
-                if member[constants.SUBNET_ID] not in member_subnet:
+                if member.get(constants.SUBNET_ID) not in member_subnet:
                     with db_apis.session().begin() as session:
                         if use_device_flavor:
                             pool_count_subnet = self.member_repo.get_pool_count_subnet_on_thunder(
-                                session, pools, member[constants.SUBNET_ID])
+                                session, pools, member.get(constants.SUBNET_ID))
                         else:
                             pool_count_subnet = self.member_repo.get_pool_count_subnet(
-                                session, partition_project_list, member[constants.SUBNET_ID])
+                                session, partition_project_list, member.get(constants.SUBNET_ID))
                         lb_count_subnet = self.loadbalancer_repo.get_lb_count_by_subnet(
-                            session, partition_project_list, member[constants.SUBNET_ID])
+                            session, partition_project_list, member.get(constants.SUBNET_ID))
                     if pool_count_subnet <= 1 and lb_count_subnet == 0:
-                        subnet_list.append(member[constants.SUBNET_ID])
-                    member_subnet.append(member[constants.SUBNET_ID])
+                        subnet_list.append(member.get(constants.SUBNET_ID))
+                    member_subnet.append(member.get(constants.SUBNET_ID))
             return subnet_list
         except Exception as e:
             LOG.exception("Failed to get subnet list for members: %s", str(e))
@@ -1121,7 +1121,7 @@ class GetLatestLoadBalancer(BaseDatabaseTask):
     def execute(self, loadbalancer):
         try:
             with db_apis.session().begin() as session:
-                lb = self.loadbalancer_repo.get(session, id=loadbalancer.id)
+                lb = self.loadbalancer_repo.get(session, id=loadbalancer.get(constants.ID))
                 return lb
         except Exception as e:
             LOG.exception("Failed to get latest loadbalancer: %s", str(e))
@@ -1469,7 +1469,7 @@ class GetPoolListener(BaseDatabaseTask):
         if not pool:
             return None
         with db_apis.session().begin() as session:
-            return self.listener_repo.get_listener_by_default_pool(session, pool[constants.ID])
+            return self.listener_repo.get_listener_by_default_pool(session, (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
 
 
 class GetProxyProtocolPoolCount(BaseDatabaseTask):

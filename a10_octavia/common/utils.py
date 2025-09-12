@@ -35,6 +35,7 @@ from octavia.common import keystone
 from octavia.db import api as db_apis
 from octavia.db import repositories as repo
 from stevedore import driver as stevedore_driver
+from octavia.common import constants
 
 from a10_octavia.common import a10constants
 from a10_octavia.common import data_models

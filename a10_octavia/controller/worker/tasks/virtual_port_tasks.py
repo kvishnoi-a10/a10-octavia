@@ -79,7 +79,7 @@ class ListenersParent(object):
         if aflex is not None:
             try:
                 curr_vport = self.axapi_client.slb.virtual_server.vport.get(
-                    listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
+                    listener[constants.LOADBALANCER_ID], listener.get(constants.LISTENER_ID) or listener.get(constants.ID),
                     listener[constants.PROTOCOL], listener['protocol_port'])
                 exclude = a10constants.PROXY_PROTOCPL_AFLEX_NAME
                 aflex_scripts = utils.get_proxy_aflex_list(curr_vport, aflex, exclude)
@@ -104,13 +104,13 @@ class ListenersParent(object):
         if listener[constants.PROTOCOL].upper() in a10constants.HTTP_TYPE:
             if listener[constants.PROTOCOL] == 'https' and listener.get(constants.TLS_CERTIFICATE_ID):
                 # Adding TERMINATED_HTTPS SSL cert, created in previous task
-                template_args["template_client_ssl"] = listener[constants.LISTENER_ID]
+                template_args["template_client_ssl"] = listener.get(constants.LISTENER_ID) or listener.get(constants.ID)
 
             if (update_dict and 'default_tls_container_ref' in update_dict
                     and update_dict["default_tls_container_ref"] is None):
                 template_args["template_client_ssl"] = None
             elif listener[constants.PROTOCOL] == 'https':
-                template_args["template_client_ssl"] = listener[constants.LISTENER_ID]
+                template_args["template_client_ssl"] = listener.get(constants.LISTENER_ID) or listener.get(constants.ID)
 
             template_http = CONF.listener.template_http
             if template_http and template_http.lower() != 'none':
@@ -173,7 +173,7 @@ class ListenersParent(object):
         config_data.update(vport_args)
 
         set_method(loadbalancer[constants.LOADBALANCER_ID],
-                   listener[constants.LISTENER_ID],
+                   listener.get(constants.LISTENER_ID) or listener.get(constants.ID),
                    listener[constants.PROTOCOL],
                    listener['protocol_port'],
                    listener.get('default_pool_id'),
@@ -193,24 +193,24 @@ class ListenerCreate(ListenersParent, task.Task):
         try:
             self.set(self.axapi_client.slb.virtual_server.vport.create,
                      loadbalancer, listener, vthunder, flavor_data)
-            LOG.debug("Successfully created listener: %s", listener[constants.LISTENER_ID])
+            LOG.debug("Successfully created listener: %s", (listener.get(constants.LISTENER_ID) or listener.get(constants.ID)) )
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to create listener: %s", listener[constants.LISTENER_ID])
+            LOG.exception("Failed to create listener: %s", listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
             raise e
 
     @axapi_client_decorator_for_revert
     def revert(self, loadbalancer, listener, vthunder, *args, **kwargs):
-        LOG.warning("Reverting creation of listener: %s", listener[constants.LISTENER_ID])
+        LOG.warning("Reverting creation of listener: %s", listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
         try:
             self.axapi_client.slb.virtual_server.vport.delete(
-                loadbalancer[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID], listener[constants.PROTOCOL],
+                loadbalancer[constants.LOADBALANCER_ID], listener.get(constants.LISTENER_ID) or listener.get(constants.ID), listener[constants.PROTOCOL],
                 listener['protocol_port'])
         except ConnectionError:
             LOG.exception(
                 "Failed to connect A10 Thunder device: %s", vthunder.ip_address)
         except Exception as e:
             LOG.exception("Failed to revert creation of listener: %s due to %s",
-                          listener[constants.LISTENER_ID], str(e))
+                          listener.get(constants.LISTENER_ID) or listener.get(constants.ID), str(e))
 
 
 class ListenerUpdate(ListenersParent, task.Task):
@@ -223,9 +223,9 @@ class ListenerUpdate(ListenersParent, task.Task):
                 listener.update(update_dict)
                 self.set(self.axapi_client.slb.virtual_server.vport.replace,
                          loadbalancer, listener, vthunder, flavor_data, update_dict)
-                LOG.debug("Successfully updated listener: %s", listener[constants.LISTENER_ID])
+                LOG.debug("Successfully updated listener: %s", listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to update listener: %s", listener[constants.LISTENER_ID])
+            LOG.exception("Failed to update listener: %s", listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
             raise e
 
 
@@ -237,7 +237,7 @@ class ListenerUpdateForPool(ListenersParent, task.Task):
         try:
             if listener:
                 kargs = {}
-                pool_id = pool[constants.POOL_ID]
+                pool_id = (pool.get(constants.POOL_ID) or pool.get(constants.ID))
                 if flow_type is not None and flow_type == "delete":
                     pool = None
                     pool_id = None
@@ -284,9 +284,9 @@ class ListenerDelete(ListenersParent, task.Task):
                                                                      listener[constants.PROTOCOL])
         try:
             self.axapi_client.slb.virtual_server.vport.delete(
-                loadbalancer[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID], listener[constants.PROTOCOL],
+                loadbalancer[constants.LOADBALANCER_ID], listener.get(constants.LISTENER_ID) or listener.get(constants.ID), listener[constants.PROTOCOL],
                 listener['protocol_port'])
-            LOG.debug("Successfully deleted listener: %s", listener[constants.LISTENER_ID])
+            LOG.debug("Successfully deleted listener: %s", listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to delete listener: %s", listener[constants.LISTENER_ID])
+            LOG.exception("Failed to delete listener: %s", listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
             raise e
