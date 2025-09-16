@@ -35,10 +35,11 @@ LOG = logging.getLogger(__name__)
 
 def _get_hm_name(axapi_client, health_mon):
     try:
-        hm = axapi_client.slb.hm.get(health_mon[constants.HEALTHMONITOR_ID])
+        hm_id = health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.ID)
+        hm = axapi_client.slb.hm.get(hm_id)
     except (acos_errors.NotFound):
         # Backwards compatability with a10-neutron-lbaas
-        hm = axapi_client.slb.hm.get(health_mon[constants.HEALTHMONITOR_ID][0:28])
+        hm = axapi_client.slb.hm.get(hm_id[0:28])
     return hm['monitor']['name']
 
 
@@ -46,7 +47,9 @@ class CreateAndAssociateHealthMonitor(task.Task):
     """Task to create a healthmonitor and associate it with provided pool."""
 
     @axapi_client_decorator
-    def execute(self, listeners, health_mon, vthunder, flavor=None):
+    def execute(self, listeners, health_mon, pool, vthunder, flavor=None):
+        hm_id = health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.HEALTH_MONITOR_ID) or health_mon.get(constants.ID)
+        LOG.debug("health monitor ID: %s", hm_id)
         method = None
         url = None
         expect_code = None
@@ -75,7 +78,7 @@ class CreateAndAssociateHealthMonitor(task.Task):
                 prov="A10",
                 user_msg=("Failed to create health monitor {}, "
                           "A health monitor of type {} is not supported "
-                          "by A10 provider").format(health_mon[constants.HEALTHMONITOR_ID], health_mon.get(constants.TYPE)))
+                          "by A10 provider").format(hm_id, health_mon.get(constants.TYPE)))
 
         try:
             hm_port = 0
@@ -86,46 +89,52 @@ class CreateAndAssociateHealthMonitor(task.Task):
 
             post_data = CONF.health_monitor.post_data
             hm_max_retries = health_mon.get(constants.MAX_RETRIES)
-            self.axapi_client.slb.hm.create(health_mon[constants.HEALTHMONITOR_ID],
+            if hm_max_retries is None:
+                # Fallback to Octavia default or A10 safe default
+                hm_max_retries = CONF.health_monitor.max_retries if hasattr(CONF.health_monitor, 'max_retries') else 3
+            self.axapi_client.slb.hm.create(hm_id,
                                             health_mon.get(constants.TYPE),
                                             health_mon.get(constants.DELAY), health_mon.get(constants.TIMEOUT),
                                             hm_max_retries=hm_max_retries, method=method,
                                             port=hm_port, url=url,
                                             expect_code=expect_code, post_data=post_data,
                                             **args)
-            LOG.debug("Successfully created health monitor: %s", health_mon[constants.HEALTHMONITOR_ID])
+            LOG.debug("Successfully created health monitor: %s", hm_id)
 
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to create health monitor: %s", health_mon[constants.HEALTHMONITOR_ID])
+            LOG.exception("Failed to create health monitor: %s", hm_id)
             raise e
 
-        if health_mon.get(constants.POOL) is not None and health_mon.get(constants.POOL).members is not None:
-            for member in health_mon.get(constants.POOL).members:
+        # pool = getattr(health_mon, "pool", None) or health_mon.get(constants.POOL, None)
+        # if health_mon.get(constants.POOL_ID) and pool and pool.get(constants.MEMBERS):
+        if health_mon.get(constants.POOL_ID) is not None and pool.get(constants.MEMBERS) is not None:
+            for member in pool.get(constants.MEMBERS):
                 try:
                     server_name = utils.get_member_server_name(self.axapi_client, member,
                                                                raise_not_found=False)
                     if self.axapi_client.slb.server.exists(server_name):
-                        self.axapi_client.slb.server.update(server_name, member.ip_address,
-                                                            health_check=health_mon.id)
+                        self.axapi_client.slb.server.update(server_name, member.get('ip_address'),
+                                                            health_check=hm_id)
                         LOG.debug("Successfully associated health monitor %s to member %s",
-                                  health_mon[constants.HEALTHMONITOR_ID], member.id)
+                                  hm_id, member.get('id'))
                 except (acos_errors.ACOSException, ConnectionError) as e:
                     LOG.exception(
                         "Failed to associate health monitor %s to member %s",
-                        health_mon[constants.HEALTHMONITOR_ID], member.id)
+                        hm_id, member.get('id'))
                     raise e
 
     @axapi_client_decorator_for_revert
     def revert(self, listeners, health_mon, vthunder, *args, **kwargs):
+        hm_id = (health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.HEALTH_MONITOR_ID) or health_mon.get(constants.ID) )
         try:
-            self.axapi_client.slb.hm.delete(health_mon[constants.HEALTHMONITOR_ID])
+            self.axapi_client.slb.hm.delete(hm_id)
         except ConnectionError:
             LOG.exception("Failed to connect A10 Thunder device: %s", vthunder.ip_address)
         except Exception as e:
             LOG.warning(
                 "Failed to revert creation of health monitor: %s due to %s",
-                health_mon[constants.HEALTHMONITOR_ID], str(e))
-
+                hm_id, str(e))
+ 
 
 class DeleteHealthMonitor(task.Task):
     """Task to disassociate Health Monitor from pool and delete"""
@@ -133,13 +142,14 @@ class DeleteHealthMonitor(task.Task):
     @axapi_client_decorator
     def execute(self, health_mon, vthunder):
         try:
+            hm_id = health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.ID)
             hm_name = _get_hm_name(self.axapi_client, health_mon)
             self.axapi_client.slb.hm.delete(hm_name)
-            LOG.debug("Successfully deleted health monitor: %s", health_mon[constants.HEALTHMONITOR_ID])
+            LOG.debug("Successfully deleted health monitor: %s", hm_id)
         except acos_errors.NotFound:
-            LOG.debug("Health monitor %s was already deleted. Skipping...", health_mon[constants.HEALTHMONITOR_ID])
+            LOG.debug("Health monitor %s was already deleted. Skipping...", hm_id)
         except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to delete health monitor: %s", health_mon[constants.HEALTHMONITOR_ID])
+            LOG.exception("Failed to delete health monitor: %s", hm_id)
             raise e
 
 

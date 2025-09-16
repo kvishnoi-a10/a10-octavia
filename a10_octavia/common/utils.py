@@ -44,6 +44,71 @@ from a10_octavia.common import exceptions
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
+def deep_to_dict_api(obj):
+    """Serialize Octavia objects into Octavia API-like dict structure."""
+    if obj is None:
+        return None
+ 
+    # Handle lists
+    if isinstance(obj, list):
+        return [deep_to_dict_api(item) for item in obj]
+ 
+    # Handle ORM/Octavia model objects with to_dict()
+    if hasattr(obj, "to_dict"):
+        data = obj.to_dict()
+ 
+        # --- Listeners ---
+        if hasattr(obj, "listeners"):
+            data["listeners"] = []
+            for listener in obj.listeners:
+                ldict = listener.to_dict()
+                # Always include default_pool_id
+                if getattr(listener, "default_pool_id", None):
+                    ldict["default_pool_id"] = listener.default_pool_id
+ 
+                # Expand default_pool fully
+                if getattr(listener, "default_pool", None):
+                    pool = listener.default_pool
+                    pdict = pool.to_dict()
+                    # Expand members
+                    if hasattr(pool, "members"):
+                        pdict["members"] = [m.to_dict() for m in pool.members]
+                    # Expand health monitor
+                    if getattr(pool, "health_monitor", None):
+                        pdict["health_monitor"] = pool.health_monitor.to_dict()
+                    # Avoid expanding listeners again (cycle)
+                    pdict.pop("listeners", None)
+                    ldict["default_pool"] = pdict
+ 
+                # Expand L7policies (with rules)
+                if hasattr(listener, "l7policies"):
+                    ldict["l7policies"] = []
+                    for pol in listener.l7policies:
+                        pdict = pol.to_dict()
+                        if hasattr(pol, "l7rules"):
+                            pdict["l7rules"] = [rule.to_dict() for rule in pol.l7rules]
+                        ldict["l7policies"].append(pdict)
+ 
+                data["listeners"].append(ldict)
+ 
+        # --- Pools ---
+        if hasattr(obj, "pools"):
+            data["pools"] = []
+            for pool in obj.pools:
+                pdict = pool.to_dict()
+                # Expand members
+                if hasattr(pool, "members"):
+                    pdict["members"] = [m.to_dict() for m in pool.members]
+                # Expand health monitor
+                if getattr(pool, "health_monitor", None):
+                    pdict["health_monitor"] = pool.health_monitor.to_dict()
+                # Do not expand listeners again (avoid cycles)
+                pdict.pop("listeners", None)
+                data["pools"].append(pdict)
+ 
+        return data
+ 
+    return obj
 
 def validate_ipv4(address):
     """Validate for IP4 address format"""

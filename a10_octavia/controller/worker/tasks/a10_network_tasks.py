@@ -679,6 +679,7 @@ class PlugVIPAmphora(BaseNetworkTask):
         if isinstance(result, failure.Failure):
             return
         lb_id = loadbalancer[constants.LOADBALANCER_ID]
+        amp_id = amphora.get(constants.ID) or amphora[0].get(constants.ID)
         LOG.warning("Unable to plug VIP for amphora id %s "
                     "load balancer id %s",
                     amphora.get(constants.ID), lb_id)
@@ -806,11 +807,11 @@ class DeallocateVIP(BaseNetworkTask):
 class UpdateVIP(BaseNetworkTask):
     """Task to update a VIP."""
 
-    def execute(self, listeners):
+    def execute(self, loadbalancer):
         session = db_apis.get_session()
         with session.begin():
             loadbalancer = self.loadbalancer_repo.get(
-                session, id=listeners[0][constants.LOADBALANCER_ID])
+                session, id=loadbalancer[constants.LOADBALANCER_ID])
         LOG.debug("Updating VIP of load_balancer %s.", loadbalancer.id)
         self.network_driver.update_vip(loadbalancer)
 

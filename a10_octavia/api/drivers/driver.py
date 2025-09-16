@@ -85,6 +85,19 @@ class A10ProviderDriver(driver_base.ProviderDriver):
                    constants.LOAD_BALANCER_UPDATES: lb_dict}
         self.client.cast({}, 'update_load_balancer', **payload)
 
+    def _encrypt_tls_container_data(self, tls_container_data):
+        for key, val in tls_container_data.items():
+            if isinstance(val, bytes):
+                tls_container_data[key] = self.fernet.encrypt(val)
+            elif isinstance(val, list):
+                encrypt_vals = []
+                for i in val:
+                    if isinstance(i, bytes):
+                        encrypt_vals.append(self.fernet.encrypt(i))
+                    else:
+                        encrypt_vals.append(i)
+                tls_container_data[key] = encrypt_vals
+
     # Many other methods may be inheritted from Amphora
     def _encrypt_listener_dict(self, listener_dict):
         # We need to encrypt the user cert/key data for sending it
@@ -102,8 +115,7 @@ class A10ProviderDriver(driver_base.ProviderDriver):
 
     def listener_create(self, listener):
         LOG.info('A10 provider load_balancer loadbalancer: %s.', listener.__dict__)
-        payload = {constants.LISTENER: listener.to_dict()}
-        self._encrypt_listener_dict(payload[constants.LISTENER])
+        payload = {constants.LISTENER: listener.to_dict(recurse=True)}
         self.client.cast({}, 'create_listener', **payload)
 
     def listener_delete(self, listener):

@@ -64,28 +64,28 @@ class PolicyUtil(object):
     def ruleParser(self, l7rule):
         ruleString = "("
         # type
-        typeString = TYPE_DICT[l7rule.type]
-        if l7rule.key and (l7rule.type == 'HEADER' or l7rule.type == 'COOKIE'):
-            typeString = typeString + " " + l7rule.key
+        typeString = TYPE_DICT[l7rule.get('type')]
+        if l7rule.get('key') and (l7rule.get('type') == 'HEADER' or l7rule.get('type') == 'COOKIE'):
+            typeString = typeString + " " + l7rule.get('key')
         typeString = "[" + typeString + "]"
         ruleString += typeString
 
         # compare type
-        compare_type_string = COMPARE_TYPE_DICT[l7rule.compare_type]
+        compare_type_string = COMPARE_TYPE_DICT[l7rule.get('compare_type')]
         ruleString += " " + compare_type_string
 
         # rule string static - required for file type rules only
-        if l7rule.type == "FILE_TYPE":
-            if l7rule.compare_type == "REGEX":
+        if l7rule.get('type') == "FILE_TYPE":
+            if l7rule.get('compare_type') == "REGEX":
                 ruleString = "([HTTP::uri] matches_regex"
             else:
                 ruleString = "([HTTP::uri] ends_with"
 
         # value
-        value_string = l7rule.value
+        value_string = l7rule.get('value')
         ruleString += " \"" + value_string + "\""
 
         ruleString += ")"
-        if l7rule.invert:
+        if l7rule.get('invert'):
             ruleString = "not" + ruleString
         return ruleString

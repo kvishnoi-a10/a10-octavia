@@ -21,6 +21,9 @@ from octavia.controller.worker.v2.tasks import database_tasks
 from octavia.controller.worker.v2.tasks import lifecycle_tasks
 from octavia.controller.worker.v2.tasks import network_tasks
 
+from oslo_log import log as logging
+LOG = logging.getLogger(__name__)
+
 from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.flows import a10_l7policy_flows
 from a10_octavia.controller.worker.tasks import a10_database_tasks
@@ -38,6 +41,7 @@ class ListenerFlows(object):
 
     def get_create_listener_flow(self, topology):
         """Flow to create a listener"""
+        LOG.debug("listener value: %s", constants.LISTENER)
         create_listener_flow = linear_flow.Flow(constants.CREATE_LISTENER_FLOW)
         create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
             requires=[constants.LISTENERS]))
@@ -65,7 +69,7 @@ class ListenerFlows(object):
             requires=[constants.LOADBALANCER, constants.LISTENER,
                       a10constants.VTHUNDER, constants.FLAVOR_DATA]))
         create_listener_flow.add(a10_network_tasks.UpdateVIP(
-            requires=constants.LISTENERS))
+            requires=constants.LOADBALANCER))
         create_listener_flow.add(a10_database_tasks.
                                  MarkLBAndListenerActiveInDB(
                                      requires=[constants.LOADBALANCER,
@@ -79,9 +83,9 @@ class ListenerFlows(object):
     def get_vthunder_fully_populated_create_listener_flow(self, topology, listener):
         """Flow to create fully populated loadbalancer listeners"""
 
-        sf_name = constants.CREATE_LISTENER_FLOW + '_' + listener.id
+        sf_name = constants.CREATE_LISTENER_FLOW + '_' + listener[constants.ID]
         create_listener_flow = linear_flow.Flow(sf_name)
-        create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
+        create_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
             requires=[constants.LISTENER],
             inject={constants.LISTENER: listener}))
@@ -114,9 +118,9 @@ class ListenerFlows(object):
             inject={constants.LISTENER: listener}))
         create_listener_flow.add(a10_network_tasks.UpdateVIP(
             name=sf_name + a10constants.UPDATE_VIP_AFTER_ALLOCATION,
-            requires=constants.LISTENERS))
+            requires=constants.LOADBALANCER))
 
-        for l7policy in listener.l7policies:
+        for l7policy in listener.get(constants.L7POLICIES):
             create_listener_flow.add(
                 self._l7policy_flows.get_fully_populated_create_l7policy_flow(
                     topology, listener, l7policy))
@@ -129,6 +133,7 @@ class ListenerFlows(object):
         return create_listener_flow
 
     def handle_ssl_cert_flow(self, flow_type='create', listener=None):
+        LOG.debug("listener value: %s", listener)
         if flow_type == 'create':
             configure_ssl = self.get_ssl_certificate_create_flow(listener)
         elif flow_type == 'update':
@@ -140,9 +145,8 @@ class ListenerFlows(object):
             a10constants.LISTENER_TYPE_DECIDER_FLOW)
 
         if listener is not None:
-            listener_id = listener[constants.LISTENER_ID]
             check_ssl = cert_tasks.CheckListenerType(
-                name='check_listener_type_' + listener_id,
+                name='check_listener_type_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID)),
                 requires=constants.LISTENER,
                 inject={constants.LISTENER: listener})
         else:
@@ -347,10 +351,10 @@ class ListenerFlows(object):
         return create_listener_flow
 
     def get_ssl_certificate_create_flow(self, listener=None):
+        LOG.debug("listener value: %s", listener)
         suffix = 'listener'
         if listener is not None:
-            listener_id = listener[constants.LISTENER_ID]
-            suffix = 'listener_' + listener_id
+            suffix = 'listener_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
 
         create_ssl_cert_flow = linear_flow.Flow(
             a10constants.CREATE_SSL_CERT_FLOW + suffix)

@@ -354,7 +354,7 @@ class A10ControllerWorker(object):
         store = {constants.LISTENERS: provider_lb['listeners'],
                 constants.LOADBALANCER: provider_lb,
                 constants.LOADBALANCER_ID: provider_lb[constants.LOADBALANCER_ID],
-                constants.LISTENER: listener}
+                constants.LISTENER: db_listener.to_dict(recurse=True)}
         try:
             if (listener[constants.PROJECT_ID] in parent_project_list or
                     (listener_parent_proj and listener_parent_proj in parent_project_list)
@@ -481,28 +481,29 @@ class A10ControllerWorker(object):
         with session.begin():
             lb = self._lb_repo.get(session,
                                 id=loadbalancer[constants.LOADBALANCER_ID])
+        lb = utils.deep_to_dict_api(lb)
         if not lb:
             LOG.warning('Failed to fetch %s %s from DB. Retrying for up to '
                         '60 seconds.', 'load_balancer',
                         loadbalancer[constants.LOADBALANCER_ID])
             raise db_exceptions.NoResultFound
 
-        flavor_id = lb.flavor_id if lb.flavor_id else CONF.a10_global.default_flavor_id
+        flavor_id = lb.get('flavor_id') if lb.get('flavor_id') else CONF.a10_global.default_flavor_id
         if not flavor and flavor_id:
             flavor = self._get_flavor_data(flavor_id)
 
         topology = CONF.a10_controller_worker.loadbalancer_topology
         
-        listeners_dicts = (
-            provider_utils.db_listeners_to_provider_dicts_list_of_dicts(
-                lb.listeners)
-        )
+        # listeners_dicts = (
+        #     provider_utils.db_listeners_to_provider_dicts_list_of_dicts(
+        #         lb.listeners)
+        # )
 
         store = {constants.LOADBALANCER_ID: loadbalancer[constants.LOADBALANCER_ID],
         constants.BUILD_TYPE_PRIORITY: constants.LB_CREATE_NORMAL_PRIORITY,
         constants.FLAVOR: flavor,
         constants.PROJECT_ID: loadbalancer[constants.PROJECT_ID],
-        constants.VIP: lb.vip,
+        constants.VIP: lb.get('vip'),
         constants.AMPS_DATA: []}
 
         store[constants.UPDATE_DICT] = {
@@ -520,8 +521,8 @@ class A10ControllerWorker(object):
                     vthunder_conf=vthunder_conf,
                     device_dict=device_dict,
                     topology=topology,
-                    listeners=listeners_dicts,
-                    pools=lb.pools,
+                    listeners=lb.get('listeners'),
+                    pools=lb.get('pools'),
                     store=store
                 )
             else:
@@ -532,7 +533,7 @@ class A10ControllerWorker(object):
                     (a10constants.USE_DEVICE_FLAVOR, False)])
                 #create_lb_tf = self.run_flow(create_lb_flow, store=store)
                 #LOG.info("Project Id is %s", lb.project_id)
-                create_lb_tf = self.run_flow(flow_utils.get_create_load_balancer_flow, loadbalancer, topology, project_id=loadbalancer[constants.PROJECT_ID], listeners=listeners_dicts, pools=loadbalancer.get(constants.POOL), store=store)
+                create_lb_tf = self.run_flow(flow_utils.get_create_load_balancer_flow, loadbalancer, topology, project_id=loadbalancer[constants.PROJECT_ID], listeners=lb.get('listeners'), pools=lb.get('pools'), store=store)
                 self._register_flow_notify_handler(create_lb_tf, loadbalancer[constants.PROJECT_ID], True,
                                                 busy, ctx_flags, loadbalancer)
 
@@ -596,9 +597,10 @@ class A10ControllerWorker(object):
                         prov_listener = provider_utils.db_listener_to_provider_listener(
                             listener, True)
                         listener_dicts.append(prov_listener.to_dict())
+                    store[constants.LISTENERS] = listener_dicts
                 delete_lb_tf = self.run_flow(
                     flow_utils.get_delete_load_balancer_flow,
-                    db_lb,
+                    db_lb.to_dict(recurse=True),
                     listener_dicts,
                     deleteCompute,
                     cascade,
@@ -939,7 +941,6 @@ class A10ControllerWorker(object):
         updated_members = []
         for i in range(len(updated_member_ids)):
             updated_members.append((updated_member_models[i], updated_members_req[i]))
-        
         store={constants.LISTENERS: listeners_dicts,
                 constants.PROJECT_ID: provider_lb[constants.PROJECT_ID],
                 constants.LOADBALANCER: provider_lb,
@@ -965,7 +966,7 @@ class A10ControllerWorker(object):
                               a10constants.LB_COUNT_THUNDER: None,
                               a10constants.MEMBER_COUNT_THUNDER: None})
                 batch_update_members_tf = self.run_flow(flow_utils.get_batch_update_members_flow,
-                                                        provider_old_members, new_members, updated_members, topology,
+                                                        provider_old_members, new_members, updated_members, topology, pool.to_dict(),
                                                         store=store)
                 self._register_flow_notify_handler(batch_update_members_tf,
                                                    provider_lb[constants.PROJECT_ID], True,

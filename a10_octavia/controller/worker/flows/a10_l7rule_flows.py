@@ -65,10 +65,11 @@ class L7RuleFlows(object):
             requires=a10constants.VTHUNDER))
         return create_l7rule_flow
 
-    def get_fully_populated_create_l7rule_flow(self, topology, listeners, l7rule):
+    def get_fully_populated_create_l7rule_flow(self, topology, listeners, l7rule, l7policy):
         """Create fully populated l7rule"""
 
-        sf_name = constants.CREATE_L7RULE_FLOW + '_' + l7rule.id
+        l7rule['l7rule_id'] = (l7rule.get(constants.ID) or l7rule.get('l7rule_id'))
+        sf_name = constants.CREATE_L7RULE_FLOW + '_' + l7rule['l7rule_id']
         create_l7rule_flow = linear_flow.Flow(sf_name)
         create_l7rule_flow.add(l7rule_tasks.L7RuleToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
@@ -87,7 +88,7 @@ class L7RuleFlows(object):
         create_l7rule_flow.add(l7rule_tasks.CreateL7Rule(
             name=sf_name + a10constants.FULLY_POPULATED_CREATE_L7RULE,
             requires=[constants.L7RULE, constants.LISTENERS, constants.L7POLICY, a10constants.VTHUNDER],
-            inject={constants.L7RULE: l7rule, constants.LISTENERS: listeners}))
+            inject={constants.L7RULE: l7rule, constants.LISTENERS: listeners, constants.L7POLICY: l7policy}))
         create_l7rule_flow.add(database_tasks.MarkL7RuleActiveInDB(
             name=sf_name + a10constants.FULLY_POPULATED_MARK_L7RULE_ACTIVE,
             requires=constants.L7RULE,

@@ -199,8 +199,8 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
                         vthunder.id,
                         password=updated_password,
                         updated_at=datetime.utcnow())
-            vthunder = self.vthunder_repo.get_vthunder_from_lb(
-                session, loadbalancer_id)
+                vthunder = self.vthunder_repo.get_vthunder_from_lb(
+                    session, loadbalancer_id)
             if not master_amphora_status:
                 vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                     session, loadbalancer_id)
@@ -641,17 +641,17 @@ class CheckMemberVLANCanBeDeleted(
 
 class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
     """Mark the load balancer and specified listener active in the DB"""
-
+ 
     def execute(self, loadbalancer, listener):
         """Mark the load balancer and listener as active in DB"""
-
+ 
         with db_apis.session().begin() as session:
             self.loadbalancer_repo.update(session,
                                         loadbalancer[constants.LOADBALANCER_ID],
                                         provisioning_status=constants.ACTIVE)
             self.listener_repo.prov_status_active_if_not_error(
-                session, listener[constants.LISTENER_ID])
-
+                session, (listener.get(constants.LISTENER_ID) or listener.get(constants.ID)))
+ 
     def revert(self, loadbalancer, listener, *args, **kwargs):
         """Mark the load balancer and listener in error state"""
         try:
@@ -666,12 +666,12 @@ class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 self.listener_repo.update(session,
-                                        id=listener[constants.LISTENER_ID],
+                                        id=(listener.get(constants.LISTENER_ID) or listener.get(constants.ID)),
                                         provisioning_status=constants.ERROR)
         except Exception as e:
             LOG.error("Failed to update listener %(list) "
                       "provisioning status to ERROR due to: "
-                      "%(except)s", {'list': listener[constants.LISTENER_ID], 'except': e})
+                      "%(except)s", {'list': (listener.get(constants.LISTENER_ID) or listener.get(constants.ID)),'except':e})
 
 
 # class GetVRIDForLBResourceSubnet(BaseDatabaseTask):
@@ -684,10 +684,11 @@ class MarkLBAndListenerActiveInDB(BaseDatabaseTask):
 
 class CountMembersWithIP(BaseDatabaseTask):
     def execute(self, member):
+        ip = member.get('ip_address') or member.get(constants.ADDRESS)
         try:
             with db_apis.session().begin() as session:
                 return self.member_repo.get_member_count_by_ip_address(
-                    session, member[constants.ADDRESS], member[constants.PROJECT_ID])
+                    session, ip, member[constants.PROJECT_ID])
         except Exception as e:
             LOG.exception(
                 "Failed to get count of members with given IP for a pool: %s",
@@ -700,7 +701,7 @@ class CountMembersWithIPPortProtocol(BaseDatabaseTask):
         try:
             with db_apis.session().begin() as session:
                 return self.member_repo.get_member_count_by_ip_address_port_protocol(
-                    session, member[constants.ADDRESS], member[constants.PROJECT_ID],
+                    session, (member.get(constants.ADDRESS) or member.get('ip-address')), member[constants.PROJECT_ID],
                     member.get('protocol_port'), pool[constants.PROTOCOL])
         except Exception as e:
             LOG.exception(
@@ -718,7 +719,7 @@ class PoolCountforIP(BaseDatabaseTask):
                         session, member[constants.ADDRESS], pools)
                 else:
                     return self.member_repo.get_pool_count_by_ip(
-                        session, member[constants.ADDRESS], member[constants.PROJECT_ID])
+                        session, (member.get(constants.ADDRESS) or member.get('ip-address')), member[constants.PROJECT_ID])
         except Exception as e:
             LOG.exception(
                 "Failed to get pool count with same IP address: %s",
@@ -1485,7 +1486,7 @@ class GetPoolListener(BaseDatabaseTask):
         if not pool:
             return None
         with db_apis.session().begin() as session:
-            return self.listener_repo.get_listener_by_default_pool(session, pool[constants.ID])
+            return self.listener_repo.get_listener_by_default_pool(session, (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
 
 
 class GetProxyProtocolPoolCount(BaseDatabaseTask):

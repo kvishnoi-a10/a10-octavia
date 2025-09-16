@@ -52,8 +52,9 @@ class L7PolicyParent(object):
             raise e
 
         try:
+            lb_id =  listener.get(constants.LOADBALANCER_ID) or listener.get(constants.LOAD_BALANCER_ID)
             get_listener = self.axapi_client.slb.virtual_server.vport.get(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
+                lb_id, listener[constants.LISTENER_ID],
                 listener[constants.PROTOCOL], listener['protocol_port'])
             LOG.debug("Successfully fetched listener %s for l7policy %s", listener[constants.LISTENER_ID], l7policy[constants.L7POLICY_ID])
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
@@ -69,7 +70,7 @@ class L7PolicyParent(object):
 
         try:
             self.axapi_client.slb.virtual_server.vport.update(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
+                lb_id, listener[constants.LISTENER_ID],
                 listener[constants.PROTOCOL], listener['protocol_port'],
                 listener['default_pool_id'], s_pers,
                 c_pers, 1, tcp_proxy_name=tcp_proxy, **kargs)
