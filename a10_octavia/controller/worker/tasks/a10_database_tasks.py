@@ -192,7 +192,7 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
         with db_apis.session().begin() as session:
             vthunder = self.vthunder_repo.get_vthunder_from_lb(
                 session, loadbalancer_id)
-            if vthunder.password != CONF.vthunder.default_vthunder_password:
+            if vthunder and vthunder.password != CONF.vthunder.default_vthunder_password:
                 updated_password = CONF.vthunder.default_vthunder_password
                 self.vthunder_repo.update(
                         session,
@@ -201,6 +201,15 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
                         updated_at=datetime.utcnow())
                 vthunder = self.vthunder_repo.get_vthunder_from_lb(
                     session, loadbalancer_id)
+                
+                if vthunder.topology == constants.TOPOLOGY_ACTIVE_STANDBY:
+                    vthunder_backup = self.vthunder_repo.get_backup_vthunder_from_lb(session, loadbalancer_id)
+                    self.vthunder_repo.update(
+                        session,
+                        vthunder_backup.id,
+                        password=updated_password,
+                        updated_at=datetime.utcnow())
+
             if not master_amphora_status:
                 vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                     session, loadbalancer_id)

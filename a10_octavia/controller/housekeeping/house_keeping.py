@@ -185,5 +185,6 @@ class PendingResourceCleanup(object):
         cleanup_interval = CONF.a10_house_keeping.resource_cleanup_interval
         pending_lbs = self.loadbalancer_repo.get_pending_lbs_to_be_deleted(db_api.get_session(),
                                                                            cleanup_interval)
+        LOG.info("Cleanup slb res   : %s", list(pending_lbs))
         for pending_lb in pending_lbs:
-            self.cw.delete_load_balancer_with_housekeeping(pending_lb, True)
+            self.cw.delete_load_balancer_with_housekeeping(pending_lb.to_dict(recurse=True), True)

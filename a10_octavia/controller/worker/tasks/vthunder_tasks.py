@@ -389,7 +389,7 @@ class GetValidIPv6Address(VThunderBaseTask):
             nics = network_driver.get_plugged_networks(compute_id)
             if topology == "ACTIVE_STANDBY":
                 backup_nics = network_driver.get_plugged_networks(
-                    loadbalancer.amphorae[1].compute_id)
+                    db_lb.amphorae[1].compute_id)
                 nics = nics + backup_nics
             address_list = CONF.a10_global.subnet_ipv6_addresses
             if address_list:
