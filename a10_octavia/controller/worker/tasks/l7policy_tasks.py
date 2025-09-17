@@ -117,61 +117,64 @@ class DeleteL7Policy(task.Task):
 
     @axapi_client_decorator
     def execute(self, l7policy, listeners,vthunder):
-        listener = listeners[0]
-        c_pers, s_pers = utils.get_sess_pers_templates(
-            listener.get('default_pool'))
-        tcp_proxy, aflex = utils.get_tcp_proxy_template(listener, listener.get('default_pool'))
-        kargs = {}
-        snat_pool = None
-        if not (listener[constants.PROTOCOL]).islower():
-            listener[constants.PROTOCOL] = openstack_mappings.virtual_port_protocol(
-                self.axapi_client, listener[constants.PROTOCOL])
-        try:
-            get_listener = self.axapi_client.slb.virtual_server.vport.get(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
-                listener[constants.PROTOCOL], listener['protocol_port'])
-            if get_listener and 'port' in get_listener and 'pool' in get_listener['port']:
-                snat_pool = get_listener['port']['pool']
-            LOG.debug("Successfully fetched listener %s for l7policy %s", listener[constants.LISTENER_ID], l7policy[constants.L7POLICY_ID])
-        except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-            LOG.exception("Failed to get listener %s for l7policy: %s", listener[constants.LISTENER_ID], l7policy[constants.L7POLICY_ID])
-            raise e
+        if self.axapi_client and self.axapi_client.slb:
+            listener = listeners[0]
+            c_pers, s_pers = utils.get_sess_pers_templates(
+                listener.get('default_pool'))
+            tcp_proxy, aflex = utils.get_tcp_proxy_template(listener, listener.get('default_pool'))
+            kargs = {}
+            snat_pool = None
+            if not (listener[constants.PROTOCOL]).islower():
+                listener[constants.PROTOCOL] = openstack_mappings.virtual_port_protocol(
+                    self.axapi_client, listener[constants.PROTOCOL])
+            try:
+                get_listener = self.axapi_client.slb.virtual_server.vport.get(
+                    (listener.get(constants.LOADBALANCER_ID)or listener.get(constants.LOAD_BALANCER_ID)),
+                    listener[constants.LISTENER_ID],
+                    listener[constants.PROTOCOL], listener['protocol_port'])
+                if get_listener and 'port' in get_listener and 'pool' in get_listener['port']:
+                    snat_pool = get_listener['port']['pool']
+                LOG.debug("Successfully fetched listener %s for l7policy %s", listener[constants.LISTENER_ID], l7policy[constants.L7POLICY_ID])
+            except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
+                LOG.exception("Failed to get listener %s for l7policy: %s", listener[constants.LISTENER_ID], l7policy[constants.L7POLICY_ID])
+                raise e
 
-        new_aflex_scripts = []
-        if 'aflex-scripts' in get_listener['port']:
-            aflex_scripts = get_listener['port']['aflex-scripts']
-            for aflex in aflex_scripts:
-                if aflex['aflex'] != l7policy[constants.L7POLICY_ID]:
-                    new_aflex_scripts.append(aflex)
-        kargs["aflex_scripts"] = new_aflex_scripts
+            new_aflex_scripts = []
+            if 'aflex-scripts' in get_listener['port']:
+                aflex_scripts = get_listener['port']['aflex-scripts']
+                for aflex in aflex_scripts:
+                    if aflex['aflex'] != l7policy[constants.L7POLICY_ID]:
+                        new_aflex_scripts.append(aflex)
+            kargs["aflex_scripts"] = new_aflex_scripts
 
-        try:
-            self.axapi_client.slb.virtual_server.vport.replace(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
-                listener[constants.PROTOCOL], listener['protocol_port'],
-                listener['default_pool_id'],
-                s_pers, c_pers, 1,
-                source_nat_pool=snat_pool,
-                tcp_proxy_name=tcp_proxy, **kargs)
-            LOG.debug(
-                "Successfully dissociated l7policy %s from listener %s",
-                l7policy[constants.L7POLICY_ID],
-                listener[constants.LISTENER_ID])
-        except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-            LOG.exception(
-                "Failed to dissociate l7policy %s from listener %s",
-                l7policy[constants.L7POLICY_ID],
-                listener[constants.LISTENER_ID])
-            raise e
+            try:
+                self.axapi_client.slb.virtual_server.vport.replace(
+                    (listener.get(constants.LOADBALANCER_ID)or listener.get(constants.LOAD_BALANCER_ID)),
+                    listener[constants.LISTENER_ID],
+                    listener[constants.PROTOCOL], listener['protocol_port'],
+                    listener['default_pool_id'],
+                    s_pers, c_pers, 1,
+                    source_nat_pool=snat_pool,
+                    tcp_proxy_name=tcp_proxy, **kargs)
+                LOG.debug(
+                    "Successfully dissociated l7policy %s from listener %s",
+                    l7policy[constants.L7POLICY_ID],
+                    listener[constants.LISTENER_ID])
+            except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
+                LOG.exception(
+                    "Failed to dissociate l7policy %s from listener %s",
+                    l7policy[constants.L7POLICY_ID],
+                    listener[constants.LISTENER_ID])
+                raise e
 
-        try:
-            l7policy_exists = self.axapi_client.slb.aflex_policy.exists(l7policy[constants.L7POLICY_ID])
-            if l7policy_exists:
-                self.axapi_client.slb.aflex_policy.delete(l7policy[constants.L7POLICY_ID])
-                LOG.debug("Successfully deleted l7policy: %s", l7policy[constants.L7POLICY_ID])
-        except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-            LOG.exception("Failed to delete l7policy: %s", l7policy[constants.L7POLICY_ID])
-            raise e
+            try:
+                l7policy_exists = self.axapi_client.slb.aflex_policy.exists(l7policy[constants.L7POLICY_ID])
+                if l7policy_exists:
+                    self.axapi_client.slb.aflex_policy.delete(l7policy[constants.L7POLICY_ID])
+                    LOG.debug("Successfully deleted l7policy: %s", l7policy[constants.L7POLICY_ID])
+            except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
+                LOG.exception("Failed to delete l7policy: %s", l7policy[constants.L7POLICY_ID])
+                raise e
 
 
 class L7PolicyToErrorOnRevertTask(lifecycle_tasks.BaseLifecycleTask):

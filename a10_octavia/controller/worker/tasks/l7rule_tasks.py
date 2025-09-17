@@ -99,62 +99,63 @@ class DeleteL7Rule(task.Task):
 
     @axapi_client_decorator
     def execute(self, l7rule,l7policy, listeners, vthunder):
-        # Use l7policy from method argument
-        rules = l7policy.get(constants.L7RULES, [])
+        if self.axapi_client and self.axapi_client.slb:
+            # Use l7policy from method argument
+            rules = l7policy.get(constants.L7RULES, [])
 
-        # Safely remove the rule if it exists
-        for index, rule in enumerate(rules):
-            if hasattr(rule, "id") and rule.id == l7rule[constants.L7RULE_ID]:
-                del rules[index]
-                break
+            # Safely remove the rule if it exists
+            for index, rule in enumerate(rules):
+                if hasattr(rule, "id") and rule.id == l7rule[constants.L7RULE_ID]:
+                    del rules[index]
+                    break
 
-        l7policy[constants.L7RULES] = rules
-        filename = l7policy[constants.L7POLICY_ID]
-        p = PolicyUtil()
-        script = p.createPolicy(l7policy)
-        size = len(script.encode('utf-8'))
-        listener = listeners[0]
-        c_pers, s_pers = utils.get_sess_pers_templates(listener.get('default_pool'))
-        tcp_proxy, aflex = utils.get_tcp_proxy_template(listener, listener.get('default_pool'))
-        kargs = {}
-        listener[constants.PROTOCOL] = openstack_mappings.virtual_port_protocol(self.axapi_client,
-                                                                     listener[constants.PROTOCOL])
-        try:
-            self.axapi_client.slb.aflex_policy.create(
-                file=filename, script=script, size=size, action="import")
-            LOG.debug("Successfully deleted l7rule: %s", l7rule[constants.L7RULE_ID])
-        except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-            LOG.warning("Failed to delete l7rule: %s", str(e))
-            raise e
+            l7policy[constants.L7RULES] = rules
+            filename = l7policy[constants.L7POLICY_ID]
+            p = PolicyUtil()
+            script = p.createPolicy(l7policy)
+            size = len(script.encode('utf-8'))
+            listener = listeners[0]
+            c_pers, s_pers = utils.get_sess_pers_templates(listener.get('default_pool'))
+            tcp_proxy, aflex = utils.get_tcp_proxy_template(listener, listener.get('default_pool'))
+            kargs = {}
+            listener[constants.PROTOCOL] = openstack_mappings.virtual_port_protocol(self.axapi_client,
+                                                                        listener[constants.PROTOCOL])
+            try:
+                self.axapi_client.slb.aflex_policy.create(
+                    file=filename, script=script, size=size, action="import")
+                LOG.debug("Successfully deleted l7rule: %s", l7rule[constants.L7RULE_ID])
+            except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
+                LOG.warning("Failed to delete l7rule: %s", str(e))
+                raise e
 
-        try:
-            get_listener = self.axapi_client.slb.virtual_server.vport.get(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
-                listener[constants.PROTOCOL], listener['protocol_port'])
-            LOG.debug("Successfully fetched listener %s for l7rule %s", listener[constants.LISTENER_ID], l7rule[constants.L7RULE_ID])
-        except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-            LOG.exception("Failed to get listener %s for l7rule: %s", listener[constants.LISTENER_ID], l7rule[constants.L7RULE_ID])
-            raise e
+            try:
+                get_listener = self.axapi_client.slb.virtual_server.vport.get(
+                    (listener.get(constants.LOADBALANCER_ID) or listener.get(constants.LOAD_BALANCER_ID)), listener[constants.LISTENER_ID],
+                    listener[constants.PROTOCOL], listener['protocol_port'])
+                LOG.debug("Successfully fetched listener %s for l7rule %s", listener[constants.LISTENER_ID], l7rule[constants.L7RULE_ID])
+            except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
+                LOG.exception("Failed to get listener %s for l7rule: %s", listener[constants.LISTENER_ID], l7rule[constants.L7RULE_ID])
+                raise e
 
-        if 'aflex-scripts' in get_listener['port']:
-            aflex_scripts = get_listener['port']['aflex-scripts']
-            aflex_scripts.append({"aflex": filename})
-        else:
-            aflex_scripts = [{"aflex": filename}]
-        kargs["aflex_scripts"] = aflex_scripts
+            if 'aflex-scripts' in get_listener['port']:
+                aflex_scripts = get_listener['port']['aflex-scripts']
+                aflex_scripts.append({"aflex": filename})
+            else:
+                aflex_scripts = [{"aflex": filename}]
+            kargs["aflex_scripts"] = aflex_scripts
 
-        try:
-            self.axapi_client.slb.virtual_server.vport.update(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
-                listener[constants.PROTOCOL], listener['protocol_port'], listener.get('default_pool_id'),
-                s_pers, c_pers, 1, tcp_proxy_name=tcp_proxy, **kargs)
-            LOG.debug("Successfully dissociated l7rule %s from listener %s", l7rule[constants.L7RULE_ID], listener[constants.LISTENER_ID])
-        except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-            LOG.exception(
-                "Failed to dissociate l7rule %s from listener %s",
-                l7rule[constants.L7RULE_ID],
-                listener[constants.LISTENER_ID])
-            raise e
+            try:
+                self.axapi_client.slb.virtual_server.vport.update(
+                    listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
+                    listener[constants.PROTOCOL], listener['protocol_port'], listener.get('default_pool_id'),
+                    s_pers, c_pers, 1, tcp_proxy_name=tcp_proxy, **kargs)
+                LOG.debug("Successfully dissociated l7rule %s from listener %s", l7rule[constants.L7RULE_ID], listener[constants.LISTENER_ID])
+            except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
+                LOG.exception(
+                    "Failed to dissociate l7rule %s from listener %s",
+                    l7rule[constants.L7RULE_ID],
+                    listener[constants.LISTENER_ID])
+                raise e
 
 
 class L7RuleToErrorOnRevertTask(lifecycle_tasks.BaseLifecycleTask):

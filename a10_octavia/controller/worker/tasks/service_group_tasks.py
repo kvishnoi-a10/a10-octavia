@@ -172,19 +172,20 @@ class PoolDelete(PoolParent, task.Task):
 
     @axapi_client_decorator
     def execute(self, pool, vthunder, listener=None, proxy_pool_count=None):
-        pool_id = pool.get(constants.ID) or pool.get(constants.POOL_ID)
-        try:
-            if utils.is_proxy_protocol_pool(pool) is True:
-                self.delete_proxy(pool, listener, proxy_pool_count)
-        except (acos_errors.ACOSException, ConnectionError):
-            LOG.exception("Failed to delete tcp-proxy/aflex for PROXY protocol pood: %s", pool_id)
+        if self.axapi_client and self.axapi_client.slb:
+            pool_id = pool.get(constants.ID) or pool.get(constants.POOL_ID)
+            try:
+                if utils.is_proxy_protocol_pool(pool) is True:
+                    self.delete_proxy(pool, listener, proxy_pool_count)
+            except (acos_errors.ACOSException, ConnectionError):
+                LOG.exception("Failed to delete tcp-proxy/aflex for PROXY protocol pood: %s", pool_id)
 
-        try:
-            self.axapi_client.slb.service_group.delete(pool_id)
-            LOG.debug("Successfully deleted pool: %s", pool_id)
-        except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to delete pool: %s", pool_id)
-            raise e
+            try:
+                self.axapi_client.slb.service_group.delete(pool_id)
+                LOG.debug("Successfully deleted pool: %s", pool_id)
+            except (acos_errors.ACOSException, ConnectionError) as e:
+                LOG.exception("Failed to delete pool: %s", pool_id)
+                raise e
 
 
 class PoolUpdate(PoolParent, task.Task):

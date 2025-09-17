@@ -792,7 +792,6 @@ class DeallocateVIP(BaseNetworkTask):
 
     def execute(self, loadbalancer, lb_count_subnet):
         """Deallocate a VIP."""
-        LOG.debug("Deallocating a VIP %s", loadbalancer[constants.VIP_ADDRESS])
         try:
             session = db_apis.get_session()
             with session.begin():
@@ -802,7 +801,7 @@ class DeallocateVIP(BaseNetworkTask):
         except Exception as e:
             LOG.error("Failed to deallocate VIP.  Resources may still "
                       "be in use from vip: %(vip)s due to error: %(except)s",
-                      {'vip': loadbalancer[constants.VIP_ADDRESS], 'except': e})
+                      {'vip': loadbalancer.get(constants.VIP_ADDRESS) or (loadbalancer.get(constants.VIP) or {}).get(constants.IP_ADDRESS), 'except': e})
 
 
 class UpdateVIP(BaseNetworkTask):
@@ -1412,7 +1411,7 @@ class GetLBResourceSubnet(BaseNetworkTask):
     def execute(self, lb_resource):
         if constants.SUBNET_ID not in lb_resource:
             # Special case for load balancers as their vips have the subnet info
-            vip_subnet_id = lb_resource.get(constants.VIP_SUBNET_ID)
+            vip_subnet_id = lb_resource.get(constants.VIP_SUBNET_ID) or (lb_resource.get(constants.VIP) or {}).get(constants.SUBNET_ID)
             if not vip_subnet_id:
                 raise Exception("Missing vip_subnet_id in load balancer resource")
             subnet = self.network_driver.get_subnet(vip_subnet_id)

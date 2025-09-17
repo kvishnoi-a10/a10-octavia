@@ -528,7 +528,6 @@ class A10ControllerWorker(object):
             if vthunder:
                 deleteCompute = self._vthunder_repo.get_delete_compute_flag(
                     db_apis.get_session(), vthunder.compute_id)
-
             store = {
                 constants.LOADBALANCER: load_balancer,
                 a10constants.COMPUTE_BUSY: busy,
@@ -542,7 +541,7 @@ class A10ControllerWorker(object):
                 a10constants.MEMBER_COUNT_THUNDER: None,
                 constants.PROJECT_ID: load_balancer[constants.PROJECT_ID],
                 constants.FLAVOR_ID: flavor_id,
-                constants.PROVISIONING_STATUS : db_lb[constants.PROVISIONING_STATUS],
+                constants.PROVISIONING_STATUS : db_lb[constants.PROVISIONING_STATUS]
             }
             if self._is_rack_flow(load_balancer[constants.PROJECT_ID], loadbalancer=load_balancer):
                 vthunder_conf = CONF.hardware_thunder.devices.get(load_balancer[constants.PROJECT_ID], None)
@@ -1597,6 +1596,7 @@ class A10ControllerWorker(object):
             except Exception:
                 # continue on other thunders (assume exception is logged)
                 pass
+
     def perform_vthunder_stats_update(self, ip):
         """Perform for listener statistics update"""
 
@@ -1709,7 +1709,6 @@ class A10ControllerWorker(object):
 
     def delete_load_balancer_with_housekeeping(self, pending_lb, cascade=True):
         """Function to delete load balancer for A10 provider using Housekeeper thread"""
-        LOG.info("Inside CW   : %s", pending_lb)
         if pending_lb[constants.PROJECT_ID] in CONF.hardware_thunder.devices:
             try:
                 vthunder = self._vthunder_repo.get_vthunder_from_lb(
@@ -1733,7 +1732,7 @@ class A10ControllerWorker(object):
             lb = self._lb_repo.get(db_apis.get_session(), id=pending_lb[constants.ID])
             lb = lb.to_dict(recurse=True)
             lb[constants.LOADBALANCER_ID] = lb.pop(constants.ID)
-            LOG.info("Inside CW   : %s", lb)
+            flavor_id = lb.get(constants.FLAVOR_ID) if lb.get(constants.FLAVOR_ID) else CONF.a10_global.default_flavor_id
             vthunder = self._vthunder_repo.get_vthunder_from_lb(db_apis.get_session(),
                                                                 lb[constants.LOADBALANCER_ID])
             listener_dicts = lb.get(constants.LISTENERS)
@@ -1743,11 +1742,13 @@ class A10ControllerWorker(object):
                 (flow, store) = flow_utils.get_delete_rack_vthunder_load_balancer_flow(
                     lb, cascade,listener_dicts,
                     vthunder_conf=vthunder_conf, device_dict=device_dict)
-                store.update({constants.LOADBALANCER: pending_lb,
+                store.update({constants.LOADBALANCER: lb,
                               a10constants.COMPUTE_BUSY: False,
                               constants.VIP: lb.get(constants.VIP),
                               constants.SERVER_GROUP_ID: lb.get(constants.SERVER_GROUP_ID),
-                              constants.PROJECT_ID: lb[constants.PROJECT_ID]})
+                              constants.PROJECT_ID: lb[constants.PROJECT_ID],
+                              constants.FLAVOR_ID: flavor_id,
+                              constants.PROVISIONING_STATUS : lb[constants.PROVISIONING_STATUS]})
                 delete_lb_tf = self.tf_engine.taskflow_load(flow, store=store)
                 delete_lb_tf.run()
             except Exception as e:

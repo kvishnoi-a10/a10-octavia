@@ -198,15 +198,15 @@ class ListenerFlows(object):
         :returns: The flow for deleting a listener
         """
         delete_listener_flow = linear_flow.Flow(constants.DELETE_LISTENER_FLOW)
-        listener_id = listener.get(constants.LISTENER_ID) or listener.get(constants.ID)
+        listener[constants.LISTENER_ID] = listener.get(constants.LISTENER_ID) or listener.get(constants.ID)
         delete_listener_flow.add(self.handle_ssl_cert_flow(
             flow_type='delete', listener=listener))
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
-            name='delete_listener_in_db_' + listener_id,
+            name='delete_listener_in_db_' + listener[constants.LISTENER_ID],
             requires=constants.LISTENER,
             inject={constants.LISTENER: listener}))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
-            name='decrement_listener_quota_' + listener_id,
+            name='decrement_listener_quota_' + listener[constants.LISTENER_ID],
             requires=constants.PROJECT_ID))
         return delete_listener_flow
 
