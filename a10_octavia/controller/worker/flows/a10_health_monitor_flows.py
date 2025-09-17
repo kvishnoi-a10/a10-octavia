@@ -53,7 +53,8 @@ class HealthMonitorFlows(object):
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
         create_hm_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR))
         create_hm_flow.add(health_monitor_tasks.CreateAndAssociateHealthMonitor(
             requires=[constants.LISTENERS, constants.HEALTH_MON,constants.POOL, a10constants.VTHUNDER,
@@ -97,7 +98,8 @@ class HealthMonitorFlows(object):
                 provides=a10constants.VTHUNDER))
         create_hm_flow.add(a10_database_tasks.GetFlavorData(
             name=sf_name + a10constants.FULLY_POPULATED_GET_FLAVOR,
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR))
         create_hm_flow.add(health_monitor_tasks.CreateAndAssociateHealthMonitor(
             name=sf_name + a10constants.FULLY_POPULATED_CREATE_HM,
@@ -194,7 +196,8 @@ class HealthMonitorFlows(object):
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
         update_hm_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR))
         update_hm_flow.add(health_monitor_tasks.UpdateHealthMonitor(
             requires=[constants.LISTENERS, constants.HEALTH_MON,

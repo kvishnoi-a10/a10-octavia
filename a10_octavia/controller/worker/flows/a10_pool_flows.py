@@ -66,7 +66,8 @@ class PoolFlows(object):
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
         create_pool_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.POOL},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR))
         create_pool = service_group_tasks.PoolCreate(
             requires=[constants.POOL, a10constants.VTHUNDER, constants.FLAVOR, constants.LISTENER],
@@ -109,8 +110,8 @@ class PoolFlows(object):
                 provides=a10constants.VTHUNDER))
         create_pool_flow.add(a10_database_tasks.GetFlavorData(
             name=sf_name + a10constants.FULLY_POPULATED_GET_FLAVOR,
-            inject={constants.POOL: pool},
-            rebind={a10constants.LB_RESOURCE: constants.POOL},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR))
         create_pool_flow.add(a10_database_tasks.GetPoolListener(
             name=sf_name + a10constants.FULLY_POPULATED_GET_POOL_LISTENER,
@@ -271,7 +272,8 @@ class PoolFlows(object):
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
         update_pool_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.POOL},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR))
         update_pool = service_group_tasks.PoolUpdate(
             requires=[constants.POOL, a10constants.VTHUNDER,
@@ -401,7 +403,8 @@ class PoolFlows(object):
 
         # Device Flavor
         delete_pool_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR))
         delete_pool_flow.add(vthunder_tasks.GetVthunderConfByFlavor(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG,

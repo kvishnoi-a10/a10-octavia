@@ -114,8 +114,8 @@ def get_rack_vthunder_delete_member_flow(vthunder_conf, device_dict):
 def get_delete_member_flow(topology):
     return M_FLOWS.get_delete_member_flow(topology)
 
-def get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated_members, vthunder_conf, device_dict):
-    return M_FLOWS.get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated_members, vthunder_conf, device_dict)
+def get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated_members, vthunder_conf, device_dict,pool):
+    return M_FLOWS.get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated_members, vthunder_conf, device_dict,pool)
 
 def get_batch_update_members_flow(old_members, new_members, updated_members,topology):
     return M_FLOWS.get_batch_update_members_flow(old_members, new_members, updated_members,topology)

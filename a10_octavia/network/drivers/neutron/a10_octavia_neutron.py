@@ -243,24 +243,20 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
         return parent_port
 
-    def create_port(self, network_id, subnet_id=None, fixed_ip=None):
-        new_port = None
-        if not subnet_id:
-            subnet_id = self.get_network(network_id).subnets[0]
+    def create_port(self, network_id, name=None, fixed_ips=None, device_owner=None):
         try:
-            port = {'port': {'name': 'octavia-port-' + network_id,
-                             'network_id': network_id,
-                             'admin_state_up': True,
-                             'device_owner': a10constants.OCTAVIA_OWNER,
-                             'fixed_ips': [{'subnet_id': subnet_id}]}}
-            if fixed_ip:
-                port['port']['fixed_ips'][0]['ip_address'] = fixed_ip
-            new_port = self.network_proxy.create_port(port)
-        except Exception:
-            message = "Error creating port in network: {0}".format(network_id)
-            LOG.exception(message)
-            raise exceptions.PortCreationFailedException(message)
-        return new_port
+            new_port = self.network_proxy.create_port(
+                name=name or f"octavia-port-{network_id}",
+                network_id=network_id,
+                admin_state_up=True,
+                device_owner=device_owner or a10constants.OCTAVIA_OWNER,
+                fixed_ips=fixed_ips or []
+            )
+            return utils.convert_port_dict_to_model(new_port)
+        except Exception as e:
+            LOG.exception("Failed to create port on network %s: %s", network_id, str(e))
+            raise
+
 
     def delete_port(self, port_id):
         try:
@@ -274,26 +270,27 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
     def reserve_subnet_addresses(self, subnet_id, addr_list, amphorae):
         subnet = self.get_subnet(subnet_id)
         try:
-            port = {'port': {'name': 'octavia-port-' + subnet.network_id,
-                             'network_id': subnet.network_id,
-                             'admin_state_up': True,
-                             'device_owner': a10constants.OCTAVIA_OWNER,
-                             'fixed_ips': []}}
-            for addr in addr_list:
-                fixed_ip = {'subnet_id': subnet_id, 'ip_address': addr}
-                port['port']['fixed_ips'].append(fixed_ip)
-            new_port = self.network_proxy.create_port(port)
-            new_port = utils.convert_port_dict_to_model(new_port)
-            if amphorae is not None:
+            new_port = self.network_proxy.create_port(
+                name=f"octavia-port-{subnet.network_id}",
+                network_id=subnet.network_id,
+                admin_state_up=True,
+                device_owner=a10constants.OCTAVIA_OWNER,
+                fixed_ips=[{'subnet_id': subnet_id, 'ip_address': addr}
+                        for addr in addr_list]
+            )
+
+
+            if amphorae:
                 for amphora in filter(
-                        lambda amp: amp.status == constants.AMPHORA_ALLOCATED,
-                        amphorae):
+                    lambda amp: amp.status == constants.AMPHORA_ALLOCATED,
+                    amphorae
+                ):
                     interface = self._get_plugged_interface(
                         amphora.compute_id, subnet.network_id, amphora.lb_network_ip)
                     self._add_allowed_address_pair_to_port(interface.port_id, addr_list)
         except Exception as e:
-            LOG.exception(str(e))
-            raise e
+            LOG.exception("Failed to reserve addresses on subnet %s: %s", subnet_id, str(e))
+            raise
         return new_port
 
     def release_subnet_addresses(self, subnet_id, addr_list, amphorae):
@@ -364,53 +361,24 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         self.network_proxy.update_port(port_id,
                                        allowed_address_pairs=aap)
 
-    def allocate_vrid_fip(self, vrid, network_id, amphorae, fixed_ip=None):
-
-        fixed_ip_json = {}
-        if vrid.subnet_id:
-            fixed_ip_json['subnet_id'] = vrid.subnet_id
-        if fixed_ip:
-            fixed_ip_json['ip_address'] = fixed_ip
-
-        # Make sure we are backward compatible with older neutron
-        if self._check_extension_enabled(aap.PROJECT_ID_ALIAS):
-            project_id_key = 'project_id'
-        else:
-            project_id_key = 'tenant_id'
-
-        # It can be assumed that network_id exists
-        port = {'port': {'name': 'octavia-vrid-fip-' + vrid.id,
-                         'network_id': network_id,
-                         'admin_state_up': False,
-                         'device_id': 'vrid-{0}'.format(vrid.id),
-                         'device_owner': aap.OCTAVIA_OWNER,
-                         project_id_key: vrid.owner}}
-        if fixed_ip_json:
-            port['port']['fixed_ips'] = [fixed_ip_json]
-
+    def allocate_vrid_fip(self, project_id, network_id, subnet_id, ip_address=None):
         try:
-            new_port = self.network_proxy.create_port(port)
-        except Exception as e:
-            message = _('Error creating neutron port on network '
-                        '{network_id}.').format(
-                network_id=network_id)
-            LOG.exception(message)
-            raise base.AllocateVIPException(
-                message,
-                orig_msg=getattr(e, 'message', None),
-                orig_code=getattr(e, 'status_code', None),
+            fixed_ips = [{'subnet_id': subnet_id}]
+            if ip_address:
+                fixed_ips[0]['ip_address'] = ip_address
+
+            new_port = self.network_proxy.create_port(
+                name=f"octavia-port-{network_id}",
+                network_id=network_id,
+                admin_state_up=True,
+                device_owner=a10constants.OCTAVIA_OWNER,
+                project_id=project_id,
+                fixed_ips=fixed_ips
             )
-        new_port = utils.convert_port_dict_to_model(new_port)
-
-        fixed_ip = new_port.fixed_ips[0].ip_address
-        for amphora in filter(
-            lambda amp: amp.status == constants.AMPHORA_ALLOCATED,
-                amphorae):
-            interface = self._get_plugged_interface(
-                amphora.compute_id, network_id, amphora.lb_network_ip)
-            self._add_allowed_address_pair_to_port(interface.port_id, fixed_ip)
-
-        return new_port
+            return utils.convert_port_dict_to_model(new_port)
+        except Exception as e:
+            LOG.exception("Failed to allocate VRID FIP on network %s: %s", network_id, str(e))
+            raise
 
     def allow_use_any_source_ip_on_egress(self, network_id, amphora):
         interface = self._get_plugged_interface(

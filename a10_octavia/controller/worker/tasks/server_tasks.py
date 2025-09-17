@@ -237,13 +237,13 @@ class MemberFindNatPool(task.Task):
     def execute(self, vthunder, pool, flavor=None):
         if flavor is None:
             return
-
         pool_flavor = flavor.get('nat_pool')
         pools_flavor = flavor.get('nat_pool_list')
         if pool_flavor or pools_flavor:
             for listener in pool.get(constants.LISTENERS):
+                listener_id = listener.get(constants.LISTENER_ID) or listener.get(constants.ID)
                 vport = self.axapi_client.slb.virtual_server.vport.get(pool[constants.LOAD_BALANCER_ID],
-                                                                       listener[constants.LISTENER_ID],
+                                                                       listener_id,
                                                                        listener[constants.PROTOCOL],
                                                                        listener.get('protocol_port'))
                 if vport and 'port' in vport and 'pool' in vport['port']:

@@ -115,9 +115,6 @@ class A10ProviderDriver(driver_base.ProviderDriver):
         original_listener = old_listener.to_dict(recurse=True)
         listener_updates = new_listener.to_dict(recurse=True)
 
-        self._encrypt_listener_dict(original_listener)
-        self._encrypt_listener_dict(listener_updates)
-
         if 'default_tls_container_ref' in listener_dict:
             listener_dict['tls_certificate_id'] = listener_dict.pop('default_tls_container_ref')
         listener_dict.pop('default_tls_container_data', None)

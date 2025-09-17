@@ -545,7 +545,6 @@ class VThunderFlows(object):
     def get_write_memory_flow(self, vthunder, store, deleteCompute):
         """Perform write memory for thunder """
         sf_name = 'a10-house-keeper' + '-' + a10constants.WRITE_MEMORY_THUNDER_FLOW
-
         write_memory_flow = linear_flow.Flow(sf_name)
         vthunder_store = {}
         vthunder_store[vthunder.vthunder_id] = vthunder

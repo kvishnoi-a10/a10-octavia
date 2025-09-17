@@ -1453,7 +1453,7 @@ class ReserveSubnetAddressForMember(BaseNetworkTask):
                           nat_flavor['pool_name'], port.id)
                 return port
             #except neutron_exceptions.InvalidIpForSubnetClient as e:
-            except os_exceptions.NotFound as e:
+            except os_exceptions.ResourceNotFound as e:
                 # The NAT pool addresses is not in member subnet, a10-octavia will allow it but
                 # will not able to reserve address for it. (since we don't know the subnet)
                 LOG.exception("Failed to reserve addresses in NAT pool %s from subnet %s: %s",
