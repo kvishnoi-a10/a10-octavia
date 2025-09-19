@@ -15,6 +15,8 @@
 import json
 import logging
 import re
+import base64
+from datetime import datetime
 
 from oslo_config import cfg
 
@@ -32,11 +34,48 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
+def get_password(barbican_client, secret_name='vthunder_password'):
+    """
+    Retrieve a password secret from Barbican.
+    Ensures the secret exists, is not expired (if expiration is set), and has a payload.
+    """
+    try:
+        secrets = barbican_client.secrets.list(name=secret_name)
+        if not secrets:
+            LOG.error("No secret found with name: '%s'", secret_name)
+            return None
+
+        secret_ref = secrets[0].secret_ref
+        secret = barbican_client.secrets.get(secret_ref)
+
+        if secret.expiration:
+            try:
+                # Parse expiration (ISO 8601 format: "YYYY-MM-DDTHH:MM:SS")
+                expiration_dt = datetime.strptime(secret.expiration, "%Y-%m-%dT%H:%M:%S")
+                if expiration_dt < datetime.utcnow():
+                    LOG.error("Secret '%s' is expired (expired at %s)", secret_name, secret.expiration)
+                    return None
+            except ValueError as ve:
+                LOG.warning("Secret '%s' has invalid expiration format: %s", secret_name, secret.expiration)
+        else:
+            LOG.debug("Secret '%s' has no expiration; assuming it's valid", secret_name)
+
+        payload = secret.payload
+        if not payload:
+            LOG.error("Secret '%s' exists but has no payload", secret_name)
+            return None
+        return payload
+
+    except Exception as e:
+        LOG.exception("Failed to retrieve secret '%s': %s", secret_name, str(e))
+        return None
+
+def decode_base64(encoded_str):
+    return base64.b64decode(encoded_str).decode('utf-8')
+
 def get_cert_data(barbican_client, listener):
     cert_data = Certificate()
     cert_ref = listener.get(constants.TLS_CERTIFICATE_ID)
-    LOG.info("Cert ID: %s", cert_ref)
-
     try:
         cert_container = barbican_client.containers.get(container_ref=cert_ref)
         cert_data = Certificate(

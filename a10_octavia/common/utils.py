@@ -40,6 +40,7 @@ from octavia.common import constants
 from a10_octavia.common import a10constants
 from a10_octavia.common import data_models
 from a10_octavia.common import exceptions
+from a10_octavia.controller.worker.tasks import utils as a10_task_utils
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -91,14 +92,14 @@ def validate_partition(hardware_device):
 
 def validate_params(hardware_info):
     """Check for all the required parameters for hardware configurations."""
-    if all(k in hardware_info for k in ('ip_address', 'username', 'password', 'device_name')):
+    if all(k in hardware_info for k in ('ip_address', 'username', 'device_name')):
         if all(hardware_info[x] is not None for x in ('ip_address',
-                                                      'username', 'password', 'device_name')):
+                                                      'username', 'device_name')):
             validate_ipv4(hardware_info['ip_address'])
             validate_partition(hardware_info)
             return hardware_info
     raise cfg.ConfigFileValueError('Please check your configuration. The params `project_id`, '
-                                   '`ip_address`, `username`, `password` and `device_name` '
+                                   '`ip_address`, `username` and `device_name` '
                                    'under [hardware_thunder] section cannot be None ')
 
 
@@ -182,6 +183,7 @@ def get_parent_project(project_id):
 
 def get_axapi_client(vthunder):
     api_ver = acos_client.AXAPI_21 if vthunder.axapi_version == 21 else acos_client.AXAPI_30
+    vthunder.password=a10_task_utils.decode_base64(vthunder.password)
     axapi_client = acos_client.Client(vthunder.ip_address, api_ver,
                                       vthunder.username, vthunder.password,
                                       timeout=CONF.vthunder.default_axapi_timeout)
