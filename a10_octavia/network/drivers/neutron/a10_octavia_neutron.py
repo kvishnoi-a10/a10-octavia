@@ -252,7 +252,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 device_owner=device_owner or a10constants.OCTAVIA_OWNER,
                 fixed_ips=fixed_ips or []
             )
-            return utils.convert_port_dict_to_model(new_port)
+            return new_port
         except Exception as e:
             LOG.exception("Failed to create port on network %s: %s", network_id, str(e))
             raise
@@ -308,40 +308,33 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
 
     def get_port_id_from_ip(self, ip):
         try:
-            ports = self.network_proxy.ports(device_owner=a10constants.OCTAVIA_OWNER)
-            if not ports or not ports.get('ports'):
-                return None
-            for port in ports['ports']:
-                if port.get('fixed_ips'):
-                    fixed_ips = port['fixed_ips']
-                    for ipaddr in fixed_ips:
-                        if ipaddr.get('ip_address') == ip:
-                            return port['id']
-        except (os_exceptions.ResourceNotFound,
-                os_exceptions.NotFoundException):
-            pass
-        except Exception:
-            message = _('Error listing ports, ip {} ').format(ip)
-            LOG.exception(message)
-            pass
-        return None
+            ports = self.network_proxy.ports(fixed_ips=f"ip_address={ip}")
+            for port in ports:  # ports is a generator of Port objects
+                if hasattr(port, "id"):
+                    return port.id
+            LOG.debug("No port found with IP %s", ip)
+            return None
+        except Exception as e:
+            LOG.error("Error listing ports, ip %s : %s", ip, str(e))
+            return None
 
     def list_networks(self):
-        network_list = self.network_proxy.list_networks()
+        network_list = list(self.network_proxy.networks())
         network_list_datamodel = []
 
-        for network in network_list.get('networks'):
+        for network in network_list:
+            subnet_ids = getattr(network, "subnet_ids", [])
             network_list_datamodel.append(n_data_models.Network(
-                id=network.get('id'),
-                name=network.get('name'),
-                subnets=network.get('subnets'),
-                project_id=network.get('project_id'),
-                admin_state_up=network.get('admin_state_up'),
-                mtu=network.get('mtu'),
-                provider_network_type=network.get('provider:network_type'),
-                provider_physical_network=network.get('provider:physical_network'),
-                provider_segmentation_id=network.get('provider:segmentation_id'),
-                router_external=network.get('router:external')))
+                id=network.id,
+                name=network.name,
+                subnets=subnet_ids,  # pass IDs like before
+                project_id=network.project_id,
+                admin_state_up=network.is_admin_state_up,
+                mtu=network.mtu,
+                provider_network_type=getattr(network, 'provider_network_type', None),
+                provider_physical_network=getattr(network, 'provider_physical_network', None),
+                provider_segmentation_id=getattr(network, 'provider_segmentation_id', None),
+                router_external=network.is_router_external))
         return network_list_datamodel
 
     def _add_allowed_address_pairs_to_port(self, port_id, ip_address_list):
