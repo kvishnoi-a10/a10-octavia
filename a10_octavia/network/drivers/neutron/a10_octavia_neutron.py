@@ -201,7 +201,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 ports = self._get_ports_by_security_group(sec_grp['id'])
 
         if not self.sec_grp_enabled or not ports:
-            ports.append(self.network_proxy.show_port(vip_port_id))
+            ports.append(self.network_proxy.get_port(vip_port_id))
             for amphora in loadbalancer.amphorae:
                 ports.extend(self._get_instance_ports_by_subnet(
                     amphora.compute_id, loadbalancer.vip.subnet_id))
@@ -236,7 +236,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
     def get_plugged_parent_port(self, vip):
         parent_port = None
         try:
-            port = self.network_proxy.show_port(vip.port_id)
+            port = self.network_proxy.get_port(vip.port_id)
             parent_port = self._port_to_parent_port(port.get("port"))
         except Exception:
             LOG.debug('Couldn\'t retrieve port with id: {}'.format(vip.port_id))
@@ -290,7 +290,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                         amphorae):
                     interface = self._get_plugged_interface(
                         amphora.compute_id, subnet.network_id, amphora.lb_network_ip)
-                    self._add_allowed_address_pair_to_port(interface.port_id, addr_list)
+                    self._add_allowed_address_pairs_to_port(interface.port_id, addr_list)
         except Exception as e:
             LOG.exception(str(e))
             raise e
@@ -408,21 +408,21 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 amphorae):
             interface = self._get_plugged_interface(
                 amphora.compute_id, network_id, amphora.lb_network_ip)
-            self._add_allowed_address_pair_to_port(interface.port_id, fixed_ip)
+            self._add_allowed_address_pairs_to_port(interface.port_id, [fixed_ip])
 
         return new_port
 
     def allow_use_any_source_ip_on_egress(self, network_id, amphora):
         interface = self._get_plugged_interface(
-            amphora.compute_id, network_id, amphora.lb_network_ip)
+            amphora[constants.COMPUTE_ID], network_id, amphora[constants.LB_NETWORK_IP])
         if interface:
-            port = self.network_proxy.show_port(interface.port_id)
-            aap_ips = port['port']['allowed_address_pairs']
+            port = self.network_proxy.get_port(interface.port_id)
+            aap_ips = port.allowed_address_pairs
             for aap_ip in aap_ips:
                 if aap_ip['ip_address'] == '0.0.0.0/0':
                     break
             else:
-                self._add_allowed_address_pair_to_port(interface.port_id, '0.0.0.0/0')
+                self._add_allowed_address_pairs_to_port(interface.port_id, ['0.0.0.0/0'])
         else:
             raise exceptions.InterfaceNotFound(amphora.compute_id, network_id)
 

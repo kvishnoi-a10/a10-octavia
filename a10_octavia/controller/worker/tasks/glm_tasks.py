@@ -198,7 +198,7 @@ class ActivateFlexpoolLicense(task.Task):
         for i in range(len(interfaces['interface']['ethernet-list'])):
             if interfaces['interface']['ethernet-list'][i]['action'] == "disable":
                 ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']
-                self.axapi_client.system.action.setInterface(ifnum)
+                self.axapi_client.system.action.setInterface(ifnum, None, 6)
 
         try:
             self.axapi_client.glm.create(
