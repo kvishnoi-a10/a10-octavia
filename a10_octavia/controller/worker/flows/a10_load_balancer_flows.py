@@ -104,7 +104,8 @@ class LoadBalancerFlows(object):
         vthunder = self._vthunder_repo.get_vthunder_by_project_id(db_apis.get_session(),
                                                                   project_id)
         lb_create_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         lb_create_flow.add(
             self.get_post_lb_vthunder_association_flow(
@@ -126,7 +127,7 @@ class LoadBalancerFlows(object):
         if pools:
             for pool in pools:
                 lb_create_flow.add(self._pool_flows.get_fully_populated_create_pool_flow(
-                    topology, pool, vthunder_flow=True))
+                    topology, pool.to_dict(), vthunder_flow=True))
 
         if listeners:
             sf_name = a10constants.FULLY_POPULATED_LISTENER_CREATE
@@ -360,7 +361,8 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(virtual_server_tasks.DeleteVirtualServerTask(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER)))
         delete_LB_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         delete_LB_flow.add(a10_database_tasks.CountLoadbalancersWithFlavor(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER),
@@ -605,7 +607,8 @@ class LoadBalancerFlows(object):
             requires=(constants.SUBNET, constants.AMPHORA,
                       a10constants.MEMBER_COUNT, a10constants.L2DSR_FLAVOR)))
         update_LB_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         update_LB_flow.add(virtual_server_tasks.UpdateVirtualServerTask(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER,
@@ -639,7 +642,8 @@ class LoadBalancerFlows(object):
 
         # device-name flavor support
         update_LB_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         update_LB_flow.add(vthunder_tasks.GetVthunderConfByFlavor(
             inject={a10constants.VTHUNDER_CONFIG: vthunder_conf,
@@ -709,7 +713,8 @@ class LoadBalancerFlows(object):
 
         # device-name flavor support
         lb_create_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         lb_create_flow.add(vthunder_tasks.GetVthunderConfByFlavor(
             inject={a10constants.VTHUNDER_CONFIG: vthunder_conf,
@@ -775,7 +780,7 @@ class LoadBalancerFlows(object):
             )
         return lb_create_flow
 
-    def get_delete_rack_vthunder_load_balancer_flow(self, lb, cascade, vthunder_conf, device_dict):
+    def get_delete_rack_vthunder_load_balancer_flow(self, lb, cascade, listeners, vthunder_conf, device_dict):
         """Flow to delete rack load balancer"""
 
         store = {}
@@ -796,7 +801,8 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(database_tasks.MarkLBAmphoraeHealthBusy(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         delete_LB_flow.add(vthunder_tasks.GetVthunderConfByFlavor(
             inject={a10constants.VTHUNDER_CONFIG: vthunder_conf,
@@ -805,7 +811,7 @@ class LoadBalancerFlows(object):
                       a10constants.DEVICE_CONFIG_DICT, constants.FLAVOR_DATA),
             provides=(a10constants.VTHUNDER_CONFIG, a10constants.USE_DEVICE_FLAVOR)))
         if cascade:
-            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb)
+            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb, listeners)
             delete_LB_flow.add(pools_listeners_delete)
         delete_LB_flow.add(a10_network_tasks.GetLBResourceSubnet(
             rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
@@ -1061,7 +1067,7 @@ class LoadBalancerFlows(object):
                 l7policy_name = 'l7policy_' + l7policy[constants.L7POLICY_ID]
                 store[l7policy_name] = l7policy
                 l7policy_delete_flow.add(
-                    self._l7policy_flows.get_cascade_delete_l7policy_internal_flow(l7policy))
+                    self._l7policy_flows.get_cascade_delete_l7policy_internal_flow(l7policy, listeners))
         if l7policy_delete_flow:
             pools_listeners_delete_flow.add(l7policy_delete_flow)
 

@@ -98,12 +98,12 @@ class MemberCreate(task.Task):
 
         try:
             self.axapi_client.slb.service_group.member.create(
-                pool[constants.ID], server_name, member['protocol_port'])
+                (pool.get(constants.ID)or pool.get(constants.POOL_ID)), server_name, member['protocol_port'])
             LOG.debug("Successfully associated member %s to pool %s",
-                      id, pool[constants.ID])
+                      id, (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
             LOG.exception("Failed to associate member %s to pool %s",
-                          id, pool[constants.ID])
+                          id, (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
             raise e
 
     @axapi_client_decorator_for_revert
@@ -115,13 +115,13 @@ class MemberCreate(task.Task):
         server_name = '{}_{}'.format(member[constants.PROJECT_ID][:5], ip.replace('.', '_'))
         try:
             LOG.warning("Reverting creation of member: %s for pool: %s",
-                        id, pool[constants.ID])
+                        id, (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
             self.axapi_client.slb.server.delete(server_name)
         except exceptions.ConnectionError:
             LOG.exception("Failed to connect A10 Thunder device: %s", vthunder.ip_address)
         except Exception as e:
             LOG.exception("Failed to revert creation of member %s for pool %s due to %s",
-                          id, pool[constants.ID], str(e))
+                          id, (pool.get(constants.ID)or pool.get(constants.POOL_ID)), str(e))
 
 
 class MemberDelete(task.Task):
@@ -132,27 +132,27 @@ class MemberDelete(task.Task):
         try:
             server_name = utils.get_member_server_name(self.axapi_client, member)
             self.axapi_client.slb.service_group.member.delete(
-                pool[constants.ID], server_name, member.get('protocol_port'))
-            LOG.debug("Successfully dissociated member %s from pool %s", member[constants.MEMBER_ID], pool[constants.ID])
+                (pool.get(constants.ID)or pool.get(constants.POOL_ID)), server_name, member.get('protocol_port'))
+            LOG.debug("Successfully dissociated member %s from pool %s", member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
         except acos_errors.NotFound:
-            LOG.debug("Unable to find member %s in pool %s", member[constants.MEMBER_ID], pool[constants.ID])
+            LOG.debug("Unable to find member %s in pool %s", member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
             return
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
             LOG.exception("Failed to dissociate member %s from pool %s",
-                          member[constants.MEMBER_ID], pool[constants.ID])
+                          member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
             raise e
 
         try:
             if member_count_ip <= 1:
                 self.axapi_client.slb.server.delete(server_name)
-                LOG.debug("Successfully deleted member %s from pool %s", member[constants.MEMBER_ID], pool[constants.ID])
+                LOG.debug("Successfully deleted member %s from pool %s", member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
             elif member_count_ip_port_protocol <= 1:
                 protocol = openstack_mappings.service_group_protocol(
                     self.axapi_client, pool[constants.PROTOCOL])
                 self.axapi_client.slb.server.port.delete(server_name, member.get('protocol_port'),
                                                          protocol)
                 LOG.debug("Successfully deleted port for member %s from pool %s",
-                          member[constants.MEMBER_ID], pool[constants.ID])
+                          member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
             LOG.exception("Failed to delete member/port: %s", member[constants.MEMBER_ID])
             raise e
@@ -203,7 +203,7 @@ class MemberUpdate(task.Task):
                                                  **server_args)
             LOG.debug("Successfully updated member: %s", member[constants.MEMBER_ID])
         except acos_errors.NotFound:
-            LOG.debug("Unable to find member %s in pool %s", member[constants.MEMBER_ID], pool[constants.ID])
+            LOG.debug("Unable to find member %s in pool %s", member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
             LOG.exception("Failed to update member: %s", member[constants.MEMBER_ID])
             raise e
@@ -246,8 +246,9 @@ class MemberFindNatPool(task.Task):
         pools_flavor = flavor.get('nat_pool_list')
         if pool_flavor or pools_flavor:
             for listener in pool.get(constants.LISTENERS):
+                listener_id = listener.get(constants.LISTENER_ID) or listener.get(constants.ID)
                 vport = self.axapi_client.slb.virtual_server.vport.get(pool[constants.LOAD_BALANCER_ID],
-                                                                       listener[constants.LISTENER_ID],
+                                                                       listener_id,
                                                                        listener[constants.PROTOCOL],
                                                                        listener.get('protocol_port'))
                 if vport and 'port' in vport and 'pool' in vport['port']:

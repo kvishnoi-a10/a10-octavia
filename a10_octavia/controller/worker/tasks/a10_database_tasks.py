@@ -32,6 +32,7 @@ from octavia.db import repositories as repo
 from octavia.statistics import stats_base
 from octavia_lib.common import constants as lib_consts
 from octavia.api.drivers import utils as provider_utils
+from octavia.certificates.common.auth.barbican_acl import BarbicanACLAuth
 
 from a10_octavia.common import a10constants
 from a10_octavia.common import exceptions
@@ -93,8 +94,11 @@ class CreateVThunderEntry(BaseDatabaseTask):
     def execute(self, amphora, loadbalancer, role, status):
         vthunder_id = uuidutils.generate_uuid()
 
+        barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
+        
         username = CONF.vthunder.default_vthunder_username
         password = CONF.vthunder.default_vthunder_password
+        # password = a10_task_utils.get_password(barbican_client)
         axapi_version = CONF.vthunder.default_axapi_version
         topology = CONF.a10_controller_worker.loadbalancer_topology
 
@@ -711,7 +715,7 @@ class CountMembersWithIPPortProtocol(BaseDatabaseTask):
             with db_apis.session().begin() as session:
                 return self.member_repo.get_member_count_by_ip_address_port_protocol(
                     session, (member.get(constants.ADDRESS) or member.get('ip-address')), member[constants.PROJECT_ID],
-                    member.get('protocol_port'), pool[constants.PROTOCOL])
+                    member.get('protocol_port'), pool.get(constants.PROTOCOL))
         except Exception as e:
             LOG.exception(
                 "Failed to get count of members with given IP fnd port for a pool: %s",
@@ -751,19 +755,19 @@ class GetSubnetForDeletionInPool(BaseDatabaseTask):
             subnet_list = []
             member_subnet = []
             for member in member_list:
-                if member[constants.SUBNET_ID] not in member_subnet:
+                if member.get(constants.SUBNET_ID) not in member_subnet:
                     with db_apis.session().begin() as session:
                         if use_device_flavor:
                             pool_count_subnet = self.member_repo.get_pool_count_subnet_on_thunder(
-                                session, pools, member[constants.SUBNET_ID])
+                                session, pools, member.get(constants.SUBNET_ID))
                         else:
                             pool_count_subnet = self.member_repo.get_pool_count_subnet(
-                                session, partition_project_list, member[constants.SUBNET_ID])
+                                session, partition_project_list, member.get(constants.SUBNET_ID))
                         lb_count_subnet = self.loadbalancer_repo.get_lb_count_by_subnet(
-                            session, partition_project_list, member[constants.SUBNET_ID])
+                            session, partition_project_list, member.get(constants.SUBNET_ID))
                     if pool_count_subnet <= 1 and lb_count_subnet == 0:
-                        subnet_list.append(member[constants.SUBNET_ID])
-                    member_subnet.append(member[constants.SUBNET_ID])
+                        subnet_list.append(member.get(constants.SUBNET_ID))
+                    member_subnet.append(member.get(constants.SUBNET_ID))
             return subnet_list
         except Exception as e:
             LOG.exception("Failed to get subnet list for members: %s", str(e))
@@ -804,14 +808,11 @@ class GetFlavorData(BaseDatabaseTask):
         else:
             return flavor_data
 
-    def execute(self, lb_resource):
-        flavor_id = a10_task_utils.attribute_search(lb_resource, 'flavor_id')
-        if not flavor_id:
-            flavor_id = CONF.a10_global.default_flavor_id
+    def execute(self, provisioning_status,flavor_id):
         if flavor_id:
             with db_apis.session().begin() as session:
                 flavor = self.flavor_repo.get(session, id=flavor_id)
-                if not flavor and lb_resource.get(constants.PROVISIONING_STATUS) != "PENDING_DELETE":
+                if not flavor and provisioning_status != "PENDING_DELETE":
                     raise exceptions.FlavorNotFound(flavor_id)
                 if flavor and flavor.flavor_profile_id:
                     flavor_profile = self.flavor_profile_repo.get(
@@ -1146,7 +1147,7 @@ class GetLatestLoadBalancer(BaseDatabaseTask):
     def execute(self, loadbalancer):
         try:
             with db_apis.session().begin() as session:
-                lb = self.loadbalancer_repo.get(session, id=loadbalancer[constants.LOADBALANCER_ID])
+                lb = self.loadbalancer_repo.get(session, id=(loadbalancer.get(constants.ID) or loadbalancer.get(constants.LOADBALANCER_ID)))
                 return lb
         except Exception as e:
             LOG.exception("Failed to get latest loadbalancer: %s", str(e))

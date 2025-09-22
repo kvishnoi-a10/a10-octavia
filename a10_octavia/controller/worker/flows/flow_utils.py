@@ -40,8 +40,8 @@ def get_create_load_balancer_flow(load_balancer, topology, project_id,
     return LB_FLOWS.get_create_load_balancer_flow(
         load_balancer, topology, project_id, listeners=listeners, pools=pools)
 
-def get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict):
-    return LB_FLOWS.get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict)
+def get_delete_rack_vthunder_load_balancer_flow(lb, cascade, listeners, vthunder_conf, device_dict):
+    return LB_FLOWS.get_delete_rack_vthunder_load_balancer_flow(lb, cascade, listeners, vthunder_conf, device_dict)
 
 def get_delete_load_balancer_flow(lb, listeners, deleteCompute, cascade):
     return LB_FLOWS.get_delete_load_balancer_flow(lb, listeners, deleteCompute, cascade)
@@ -149,6 +149,3 @@ def get_reload_check_flow(vthunder, store):
 
 def get_listener_stats_flow(vthunder, store):
     return LISTENER_FLOWS.get_listener_stats_flow(vthunder, store)
-
-def get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict):
-    return LB_FLOWS.get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict)

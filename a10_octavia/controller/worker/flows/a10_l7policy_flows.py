@@ -182,7 +182,7 @@ class L7PolicyFlows(object):
             requires=a10constants.VTHUNDER))
         return update_l7policy_flow
 
-    def get_cascade_delete_l7policy_internal_flow(self, l7policy):
+    def get_cascade_delete_l7policy_internal_flow(self, l7policy, listeners):
         delete_l7policy_flow = linear_flow.Flow(constants.DELETE_L7POLICY_FLOW)
         # delete_l7policy_flow.add(model_tasks.DeleteModelObject(
         #     name='delete_model_object_' + l7policy_name,
@@ -190,5 +190,5 @@ class L7PolicyFlows(object):
         delete_l7policy_flow.add(l7policy_tasks.DeleteL7Policy(
             name='delete_l7policy_' + l7policy[constants.L7POLICY_ID],
             requires=[constants.L7POLICY, a10constants.VTHUNDER, constants.LISTENERS],
-            inject={constants.L7POLICY: l7policy}))
+            inject={constants.L7POLICY: l7policy, constants.LISTENERS: listeners}))
         return delete_l7policy_flow

@@ -31,6 +31,13 @@ from a10_octavia.common import utils as a10_utils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
+def get_password(barbican_client, secret_name = 'vthunder_password'):
+    try:
+        secret = barbican_client.secrets.list(name=secret_name)
+        password = barbican_client.secrets.get(secret[0].secret_ref).payload
+    except Exception as e:
+        LOG.error("Secret %s container not found or failed to retrieve: %s", secret_name, str(e))
+    return password
 
 def get_cert_data(barbican_client, listener):
     cert_data = Certificate()

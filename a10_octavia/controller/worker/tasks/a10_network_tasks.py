@@ -679,10 +679,9 @@ class PlugVIPAmphora(BaseNetworkTask):
         if isinstance(result, failure.Failure):
             return
         lb_id = loadbalancer[constants.LOADBALANCER_ID]
-        amp_id = amphora.get(constants.ID) or amphora[0].get(constants.ID)
         LOG.warning("Unable to plug VIP for amphora id %s "
                     "load balancer id %s",
-                    amphora.get(constants.ID), lb_id)
+                    amphora[0].get(constants.ID), lb_id)
 
         # try:
         #     amphora.vrrp_port_id = result.vrrp_port_id

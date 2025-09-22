@@ -502,7 +502,7 @@ class EnableInterfaceOnSpare(VThunderBaseTask):
                     for i in range(len(interfaces['interface']['ethernet-list'])):
                         if interfaces['interface']['ethernet-list'][i]['action'] == "disable":
                             ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']
-                            self.axapi_client.system.action.setInterface(ifnum)
+                            self.axapi_client.system.action.setInterface(ifnum, None, 6)
         except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
             LOG.exception("Failed to configure vthunder interface: %s", str(e))
             raise e
@@ -751,22 +751,22 @@ class HandleACOSPartitionChange(VThunderBaseTask):
     """Task to switch to specified partition"""
 
     def _get_hmt_partition_name(self, loadbalancer):
-        partition_name = loadbalancer.project_id[:14]
+        partition_name = loadbalancer[constants.PROJECT_ID][:14]
         if CONF.a10_global.use_parent_partition:
-            parent_project_id = a10_utils.get_parent_project(loadbalancer.project_id)
+            parent_project_id = a10_utils.get_parent_project(loadbalancer[constants.PROJECT_ID])
             if parent_project_id:
                 if parent_project_id != 'default':
                     partition_name = parent_project_id[:14]
             else:
                 LOG.error(
                     "The parent project for project %s does not exist. ",
-                    loadbalancer.project_id)
-                raise exceptions.ParentProjectNotFound(loadbalancer.project_id)
+                    loadbalancer[constants.PROJECT_ID])
+                raise exceptions.ParentProjectNotFound(loadbalancer[constants.PROJECT_ID])
         else:
             LOG.warning(
                 "Hierarchical multitenancy is disabled, use_parent_partition "
                 "configuration will not be applied for loadbalancer: %s",
-                loadbalancer.id)
+                loadbalancer[constants.LOADBALANCER_ID])
         return partition_name
 
     def execute(self, loadbalancer, vthunder_config):
@@ -1345,7 +1345,7 @@ class UpdateAcosVersionInVthunderEntry(VThunderBaseTask):
         if loadbalancer is not None:
             existing_vthunder = self.vthunder_repo.get_vthunder_by_project_id(
                 db_apis.get_session(),
-                loadbalancer.project_id)
+                loadbalancer[constants.PROJECT_ID])
         if not existing_vthunder:
             try:
                 acos_version_summary = self.axapi_client.system.action.get_acos_version()
@@ -1492,7 +1492,7 @@ class GetMasterVThunder(VThunderBaseTask):
                     # pw = self.axapi_client.system.action.get_password()
                     # LOG.info("vthunder password: %s", pw)
                     vcs_summary = self.axapi_client.system.action.get_vcs_summary_oper()
-                    vcs_member_list = vcs_summary['vcs-summary']['oper']['member-list']
+                    vcs_member_list = (vcs_summary.get('vcs-summary', {}).get('oper', {}).get('member-list'))
                     for i in range(len(vcs_member_list)):
                         role = vcs_member_list[i]['state'].split('(')[0]
                         if role == "vMaster":
@@ -1540,9 +1540,9 @@ class GetVthunderConfByFlavor(VThunderBaseTask):
                 dev_key = a10constants.DEVICE_KEY_PREFIX + device_flavor
                 if dev_key in device_config_dict:
                     vthunder_config = device_config_dict[dev_key]
-                    vthunder_config.project_id = loadbalancer.project_id
+                    vthunder_config.project_id = loadbalancer[constants.PROJECT_ID]
                     if vthunder_config.hierarchical_multitenancy == "enable":
-                        vthunder_config.partition_name = loadbalancer.project_id[0:14]
+                        vthunder_config.partition_name = loadbalancer[constants.PROJECT_ID][0:14]
                     return vthunder_config, True
                 else:
                     raise exceptions.FlavorDeviceNotFound(device_flavor)
