@@ -800,7 +800,7 @@ class DeallocateVIP(BaseNetworkTask):
         except Exception as e:
             LOG.error("Failed to deallocate VIP.  Resources may still "
                       "be in use from vip: %(vip)s due to error: %(except)s",
-                      {'vip': loadbalancer[constants.VIP_ADDRESS], 'except': e})
+                      {'vip': loadbalancer.get(constants.VIP_ADDRESS) or (loadbalancer.get(constants.VIP) or {}).get(constants.IP_ADDRESS), 'except': e})
 
 
 class UpdateVIP(BaseNetworkTask):
@@ -1417,7 +1417,7 @@ class GetLBResourceSubnet(BaseNetworkTask):
         #     return
         if constants.SUBNET_ID not in lb_resource:
             # Special case for load balancers as their vips have the subnet info
-            vip_subnet_id = lb_resource.get(constants.VIP_SUBNET_ID)
+            vip_subnet_id = lb_resource.get(constants.VIP_SUBNET_ID) or (lb_resource.get(constants.VIP) or {}).get(constants.SUBNET_ID)
             if not vip_subnet_id:
                 raise Exception("Missing vip_subnet_id in load balancer resource")
             subnet = self.network_driver.get_subnet(vip_subnet_id)
@@ -1458,7 +1458,7 @@ class ReserveSubnetAddressForMember(BaseNetworkTask):
                           nat_flavor['pool_name'], port.id)
                 return port
             #except neutron_exceptions.InvalidIpForSubnetClient as e:
-            except os_exceptions.NotFound as e:
+            except os_exceptions.ResourceNotFound as e:
                 # The NAT pool addresses is not in member subnet, a10-octavia will allow it but
                 # will not able to reserve address for it. (since we don't know the subnet)
                 LOG.exception("Failed to reserve addresses in NAT pool %s from subnet %s: %s",

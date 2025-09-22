@@ -79,9 +79,8 @@ class HealthMonitorFlows(object):
 
         :returns: The flow for creating a health monitor
         """
-        hm_id = hm.get(constants.ID)
-        hm[constants.HEALTHMONITOR_ID] = hm_id
-        sf_name = constants.CREATE_HEALTH_MONITOR_FLOW + '_' + hm.get(constants.HEALTHMONITOR_ID)
+        hm_id = hm.get(constants.ID) or hm.get(constants.HEALTHMONITOR_ID)
+        sf_name = constants.CREATE_HEALTH_MONITOR_FLOW + '_' + hm_id
         create_hm_flow = linear_flow.Flow(sf_name)
         create_hm_flow.add(health_monitor_tasks.HealthMonitorToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,

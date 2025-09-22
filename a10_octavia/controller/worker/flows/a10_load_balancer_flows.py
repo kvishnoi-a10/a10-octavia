@@ -127,7 +127,7 @@ class LoadBalancerFlows(object):
         if pools:
             for pool in pools:
                 lb_create_flow.add(self._pool_flows.get_fully_populated_create_pool_flow(
-                    topology, pool.to_dict(), vthunder_flow=True))
+                    topology, pool, vthunder_flow=True))
 
         if listeners:
             sf_name = a10constants.FULLY_POPULATED_LISTENER_CREATE

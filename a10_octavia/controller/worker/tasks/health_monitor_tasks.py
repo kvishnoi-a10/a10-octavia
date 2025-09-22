@@ -34,14 +34,14 @@ LOG = logging.getLogger(__name__)
 
 
 def _get_hm_name(axapi_client, health_mon):
-    try:
-        hm_id = health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.ID)
-        hm = axapi_client.slb.hm.get(hm_id)
-    except (acos_errors.NotFound):
-        # Backwards compatability with a10-neutron-lbaas
-        hm = axapi_client.slb.hm.get(hm_id[0:28])
-    return hm['monitor']['name']
-
+    if axapi_client and axapi_client.slb:
+        try:
+            hm_id = health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.ID)
+            hm = axapi_client.slb.hm.get(hm_id)
+        except (acos_errors.NotFound):
+            # Backwards compatability with a10-neutron-lbaas
+            hm = axapi_client.slb.hm.get(hm_id[0:28])
+        return hm['monitor']['name']
 
 class CreateAndAssociateHealthMonitor(task.Task):
     """Task to create a healthmonitor and associate it with provided pool."""
@@ -141,16 +141,17 @@ class DeleteHealthMonitor(task.Task):
 
     @axapi_client_decorator
     def execute(self, health_mon, vthunder):
-        try:
-            hm_id = health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.ID)
-            hm_name = _get_hm_name(self.axapi_client, health_mon)
-            self.axapi_client.slb.hm.delete(hm_name)
-            LOG.debug("Successfully deleted health monitor: %s", hm_id)
-        except acos_errors.NotFound:
-            LOG.debug("Health monitor %s was already deleted. Skipping...", hm_id)
-        except (acos_errors.ACOSException, ConnectionError) as e:
-            LOG.exception("Failed to delete health monitor: %s", hm_id)
-            raise e
+        if self.axapi_client and self.axapi_client.slb:
+            try:
+                hm_id = health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.ID)
+                hm_name = _get_hm_name(self.axapi_client, health_mon)
+                self.axapi_client.slb.hm.delete(hm_name)
+                LOG.debug("Successfully deleted health monitor: %s", hm_id)
+            except acos_errors.NotFound:
+                LOG.debug("Health monitor %s was already deleted. Skipping...", hm_id)
+            except (acos_errors.ACOSException, ConnectionError) as e:
+                LOG.exception("Failed to delete health monitor: %s", hm_id)
+                raise e
 
 
 class UpdateHealthMonitor(task.Task):

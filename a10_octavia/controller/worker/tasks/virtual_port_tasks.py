@@ -242,33 +242,34 @@ class ListenerUpdateForPool(ListenersParent, task.Task):
                     pool_id = None
                 tcp_proxy, aflex = utils.get_tcp_proxy_template(listener, pool)
                 c_pers, s_pers = utils.get_sess_pers_templates(pool)
-                listener[constants.PROTOCOL] = openstack_mappings.virtual_port_protocol(
-                    self.axapi_client, listener.get(constants.PROTOCOL)).lower()
-                clear_aflex = False
+                if self.axapi_client and self.axapi_client.slb:
+                    listener[constants.PROTOCOL] = openstack_mappings.virtual_port_protocol(
+                        self.axapi_client, listener.get(constants.PROTOCOL)).lower()
+                    clear_aflex = False
 
-                if aflex is not None:
-                    curr_vport = self.axapi_client.slb.virtual_server.vport.get(
-                        listener.get(constants.LOAD_BALANCER_ID), listener.get(constants.ID),
-                        listener.get(constants.PROTOCOL), listener.get('protocol_port'))
-                    exclude = a10constants.PROXY_PROTOCPL_AFLEX_NAME
-                    aflex_scripts = utils.get_proxy_aflex_list(curr_vport, aflex, exclude)
-                    kargs["aflex_scripts"] = aflex_scripts
-                    clear_aflex = True
-                if (pool and pool.get(constants.PROVISIONING_STATUS) == constants.PENDING_DELETE and
-                        utils.proxy_protocol_use_aflex(listener, pool)) is True:
-                    clear_aflex = True
+                    if aflex is not None:
+                        curr_vport = self.axapi_client.slb.virtual_server.vport.get(
+                            listener.get(constants.LOAD_BALANCER_ID), listener.get(constants.ID),
+                            listener.get(constants.PROTOCOL), listener.get('protocol_port'))
+                        exclude = a10constants.PROXY_PROTOCPL_AFLEX_NAME
+                        aflex_scripts = utils.get_proxy_aflex_list(curr_vport, aflex, exclude)
+                        kargs["aflex_scripts"] = aflex_scripts
+                        clear_aflex = True
+                    if (pool and pool.get(constants.PROVISIONING_STATUS) == constants.PENDING_DELETE and
+                            utils.proxy_protocol_use_aflex(listener, pool)) is True:
+                        clear_aflex = True
 
-                self.axapi_client.slb.virtual_server.vport.update(
-                    loadbalancer[constants.LOADBALANCER_ID],
-                    listener.get(constants.ID),
-                    listener.get(constants.PROTOCOL),
-                    listener.get('protocol_port'),
-                    pool_id,
-                    s_pers_name=s_pers, c_pers_name=c_pers,
-                    tcp_proxy_name=tcp_proxy,
-                    aflex_scripts_clear=clear_aflex,
-                    **kargs)
-                LOG.debug("Successfully updated listener: %s", listener.get(constants.ID))
+                    self.axapi_client.slb.virtual_server.vport.update(
+                        loadbalancer[constants.LOADBALANCER_ID],
+                        listener.get(constants.ID),
+                        listener.get(constants.PROTOCOL),
+                        listener.get('protocol_port'),
+                        pool_id,
+                        s_pers_name=s_pers, c_pers_name=c_pers,
+                        tcp_proxy_name=tcp_proxy,
+                        aflex_scripts_clear=clear_aflex,
+                        **kargs)
+                    LOG.debug("Successfully updated listener: %s", listener.get(constants.ID))
         except (acos_errors.ACOSException, ConnectionError) as e:
             LOG.exception("Failed to update listener: %s", listener.get(constants.ID))
             raise e

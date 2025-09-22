@@ -998,7 +998,7 @@ class A10ControllerWorker(object):
                 device_dict = CONF.hardware_thunder.devices
                 batch_update_members_tf = self.run_flow(flow_utils.get_rack_vthunder_batch_update_members_flow,
                                                         provider_old_members,new_members,updated_members,
-                                                        vthunder_conf,device_dict,store= store )
+                                                        vthunder_conf,device_dict,pool.to_dict(),store= store )
             else:
                 topology = CONF.a10_controller_worker.loadbalancer_topology
                 busy = self._vthunder_busy_check(provider_lb[constants.PROJECT_ID], True,
@@ -1816,6 +1816,7 @@ class A10ControllerWorker(object):
             lb = self._lb_repo.get(db_apis.get_session(), id=pending_lb[constants.ID])
             lb = lb.to_dict(recurse=True)
             lb[constants.LOADBALANCER_ID] = lb.pop(constants.ID)
+            flavor_id = lb.get(constants.FLAVOR_ID) if lb.get(constants.FLAVOR_ID) else CONF.a10_global.default_flavor_id
             vthunder = self._vthunder_repo.get_vthunder_from_lb(db_apis.get_session(),
                                                                 lb[constants.LOADBALANCER_ID])
             listener_dicts = lb.get(constants.LISTENERS)
@@ -1825,11 +1826,13 @@ class A10ControllerWorker(object):
                 (flow, store) = flow_utils.get_delete_rack_vthunder_load_balancer_flow(
                     lb, cascade,listener_dicts,
                     vthunder_conf=vthunder_conf, device_dict=device_dict)
-                store.update({constants.LOADBALANCER: pending_lb,
+                store.update({constants.LOADBALANCER: lb,
                               a10constants.COMPUTE_BUSY: False,
                               constants.VIP: lb.get(constants.VIP),
                               constants.SERVER_GROUP_ID: lb.get(constants.SERVER_GROUP_ID),
-                              constants.PROJECT_ID: lb[constants.PROJECT_ID]})
+                              constants.PROJECT_ID: lb[constants.PROJECT_ID],
+                              constants.FLAVOR_ID: flavor_id,
+                              constants.PROVISIONING_STATUS : lb[constants.PROVISIONING_STATUS]})
                 delete_lb_tf = self.tf_engine.taskflow_load(flow, store=store)
                 delete_lb_tf.run()
             except Exception as e:

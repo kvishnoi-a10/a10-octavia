@@ -170,9 +170,7 @@ class MemberFlows(object):
     def get_vthunder_fully_populated_create_member_flow(self, topology, member):
         """Create fully populated loadbalancer member flow"""
 
-        ip_address = member.get('ip_address')
-        member[constants.ADDRESS] = ip_address
-        mem_id = (member.get(constants.MEMBER_ID) or member.get(constants.ID))
+        mem_id = member.get(constants.MEMBER_ID)
         member[constants.MEMBER_ID] = mem_id
         sf_name = constants.CREATE_MEMBER_FLOW + '_' + mem_id
         create_member_flow = linear_flow.Flow(sf_name)
@@ -1013,7 +1011,7 @@ class MemberFlows(object):
         return create_member_snat_subflow
 
     def get_rack_vthunder_batch_update_members_flow(self, old_members, new_members,
-                                                    updated_members, vthunder_conf, device_dict):
+                                                    updated_members, vthunder_conf, device_dict, pool):
         """Create a flow to batch update members
         :returns: The flow for batch updating members
         """
