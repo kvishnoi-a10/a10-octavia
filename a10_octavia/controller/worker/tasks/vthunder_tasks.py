@@ -15,7 +15,8 @@
 
 import acos_client
 from acos_client import errors as acos_errors
-
+import json
+import requests
 import datetime
 try:
     import http.client as http_client
@@ -34,7 +35,9 @@ from octavia.common import data_models
 from octavia.common import utils
 from octavia.db import api as db_apis
 from octavia.db import repositories as repo
+from octavia.certificates.common.auth.barbican_acl import BarbicanACLAuth
 
+from a10_octavia.controller.worker.tasks import utils as a10_task_utils
 from a10_octavia.common import a10constants
 from a10_octavia.common import exceptions
 from a10_octavia.common import openstack_mappings
@@ -65,6 +68,80 @@ class VThunderBaseTask(task.Task):
             self._network_driver = a10_utils.get_network_driver()
         return self._network_driver
 
+class UpdateVThunderPassword(VThunderBaseTask):
+    def get_auth_token(self, username, password, base_url):
+        """
+        Function to get authorization token.
+        :param username: username for vthunder instance
+        :param password: password of vthunder
+        :param base_url: vthunder base URL to access axAPI
+        :return: Authorization token
+        axAPI: /axAPI/v3/auth
+        """
+        # axAPI header
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        # axAPI Auth URL json body
+        data = {"credentials": {
+            "username": username,
+            "password": password
+        }
+        }
+        url = "".join([base_url, "/auth"])
+        try:
+            response = requests.post(url, headers=headers,
+                                    data=json.dumps(data), verify=False)
+            if response.status_code == 200:
+                authorization_token = json.loads(response.text)["authresponse"]["signature"]
+                return authorization_token
+    
+            else:
+                LOG.error('Failed to get authorization token from axAPI')
+                print('Failed to get authorization token from axAPI')
+        except Exception as e:
+            LOG.error('Error in authentication token: ', e)
+
+    def change_password(self, token, base_url, loadbalancer):
+        
+        barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
+        new_password_encrypt = a10_task_utils.get_password(barbican_client)
+        new_password = a10_task_utils.decode_base64(new_password_encrypt)
+        headers = {
+        "Authorization": f"A10 {token}",
+        "Content-Type": "application/json"
+        }
+        url = f"{base_url}/admin/admin/password"
+        payload = {
+            "password":{
+                "password-in-module":f"{new_password}"
+            }
+        }
+        try:
+            response = requests.post(url, headers=headers, data= json.dumps(payload), verify=False)
+            if response.status_code==200:
+                LOG.info("Password changed")
+            else:
+                LOG.error("Failed to change password")
+            return new_password_encrypt
+        except requests.exceptions.RequestException as e:
+            LOG.error("Failed to change password due to error: %s",e)
+            return None
+
+    def execute(self, vthunder, loadbalancer):
+        mgmt_ip = vthunder.ip_address
+        username = vthunder.username
+        password = vthunder.password
+        base_url = "https://" + mgmt_ip + "/axapi/v3"
+        auth_token = self.get_auth_token(username,password,base_url)
+        if auth_token:
+            new_password = self.change_password(auth_token,base_url,loadbalancer)
+            vthunder.password = new_password
+            LOG.info("New password: %s",new_password)
+        else:
+            LOG.error("Failed to authenticate the vthunder")
+        return vthunder
 
 class VThunderComputeConnectivityWait(VThunderBaseTask):
     """Task to wait for the compute instance to be up"""
@@ -1221,7 +1298,7 @@ class DeleteInterfaceTagIfNotInUseForMember(TagInterfaceBaseTask):
         if not member.get(constants.SUBNET_ID):
             LOG.warning("Subnet id argument was not specified during "
                         "issuance of create command/API call for member %s. "
-                        "Skipping DeleteInterfaceTagIfNotInUseForMember task", member.id)
+                        "Skipping DeleteInterfaceTagIfNotInUseForMember task", member.get(constants.ID))
             return
         try:
             if vthunder and vthunder.device_network_map:
@@ -1611,5 +1688,5 @@ class SetVThunderHostname(VThunderBaseTask):
         try:
             self.axapi_client.system.action.set_hostname(hostname)
         except acos_errors.ACOSException as e:
-            LOG.error("Could not set hostname for amphora %s", amphora.id)
+            LOG.error("Could not set hostname for amphora %s", amphora[constants.ID])
             raise e

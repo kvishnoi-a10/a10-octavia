@@ -1063,7 +1063,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
         super(HandleVRIDFloatingIP, self).__init__(*arg, **kwargs)
 
     def _add_vrid_to_list(self, vrid_list, subnet, owner):
-        LOG.debug("Creating new VRID entry for subnet_id: %s", subnet_id)
+        LOG.debug("Creating new VRID entry for subnet_id: %s", subnet.id)
         vrid_value = CONF.a10_global.vrid
         subnet_ids = set([s.id for s in subnet]) if isinstance(subnet, list) else [subnet.id]
         for subnet_id in subnet_ids:

@@ -91,14 +91,18 @@ class GetVThunderAmphora(BaseDatabaseTask):
 class CreateVThunderEntry(BaseDatabaseTask):
     """ Create VThunder device entry in DB"""
 
-    def execute(self, amphora, loadbalancer, role, status):
+    def execute(self, amphora, loadbalancer, role, status, flag):
         vthunder_id = uuidutils.generate_uuid()
 
         barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
         
         username = CONF.vthunder.default_vthunder_username
-        password = CONF.vthunder.default_vthunder_password
-        # password = a10_task_utils.get_password(barbican_client)
+
+        if flag:
+            password = a10_task_utils.get_password(barbican_client)
+        else:
+            password = CONF.vthunder.default_vthunder_password
+        
         axapi_version = CONF.vthunder.default_axapi_version
         topology = CONF.a10_controller_worker.loadbalancer_topology
 
@@ -187,33 +191,42 @@ class DeleteVThunderEntry(BaseDatabaseTask):
             pass
         LOG.info("Successfully deleted vthunder entry in database.")
 
+class UpdateVThunderEntry(BaseDatabaseTask):
+    def execute(self, loadbalancer, vthunder):
+        loadbalancer_id = loadbalancer.get(constants.LOADBALANCER_ID)
+        with db_apis.session().begin() as session:
+            vthunder_db = self.vthunder_repo.get_vthunder_from_lb(
+                session, loadbalancer_id)
+            if vthunder_db.password != vthunder.password:
+                self.vthunder_repo.update(
+                            session,
+                            vthunder.id,
+                            password=vthunder.password,
+                            updated_at=datetime.utcnow())
+                updated_vthunder = self.vthunder_repo.get_vthunder_from_lb(
+                        session, loadbalancer_id)
+                if vthunder.topology == constants.TOPOLOGY_ACTIVE_STANDBY:
+                        vthunder_backup = self.vthunder_repo.get_backup_vthunder_from_lb(session, loadbalancer_id)
+                        self.vthunder_repo.update(
+                            session,
+                            vthunder_backup.id,
+                            password=vthunder.password,
+                            updated_at=datetime.utcnow())
+        if vthunder is None:
+            return None
+        return updated_vthunder
+
 
 class GetVThunderByLoadBalancer(BaseDatabaseTask):
     """Get VThunder from db using LoadBalancer"""
 
     def execute(self, loadbalancer, master_amphora_status=True):
-        loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
+        loadbalancer_id = loadbalancer.get(constants.LOADBALANCER_ID)
         with db_apis.session().begin() as session:
             vthunder = self.vthunder_repo.get_vthunder_from_lb(
                 session, loadbalancer_id)
-            if vthunder and vthunder.password != CONF.vthunder.default_vthunder_password:
-                updated_password = CONF.vthunder.default_vthunder_password
-                self.vthunder_repo.update(
-                        session,
-                        vthunder.id,
-                        password=updated_password,
-                        updated_at=datetime.utcnow())
-                vthunder = self.vthunder_repo.get_vthunder_from_lb(
-                    session, loadbalancer_id)
-                
-                if vthunder.topology == constants.TOPOLOGY_ACTIVE_STANDBY:
-                    vthunder_backup = self.vthunder_repo.get_backup_vthunder_from_lb(session, loadbalancer_id)
-                    self.vthunder_repo.update(
-                        session,
-                        vthunder_backup.id,
-                        password=updated_password,
-                        updated_at=datetime.utcnow())
-
+            if vthunder:
+                vthunder.password=a10_task_utils.decode_base64(vthunder.password)
             if not master_amphora_status:
                 vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                     session, loadbalancer_id)
@@ -294,6 +307,8 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
 
     def execute(self, loadbalancer, vthunder_config):
         hierarchical_mt = vthunder_config.hierarchical_multitenancy
+        barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
+        encoded_password = a10_task_utils.get_password(barbican_client)
         try:
             with db_apis.session().begin() as session:
                 vthunder = self.vthunder_repo.create(
@@ -301,7 +316,7 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
                     vthunder_id=uuidutils.generate_uuid(),
                     device_name=vthunder_config.device_name,
                     username=vthunder_config.username,
-                    password=vthunder_config.password,
+                    password=encoded_password,
                     ip_address=vthunder_config.ip_address,
                     undercloud=vthunder_config.undercloud,
                     loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID],
@@ -468,9 +483,9 @@ class UpdateVRIDForLoadbalancerResource(BaseDatabaseTask):
                 raise e
             return
         for vrid in vrid_list:
-            if self.vrid_repo.exists(session, vrid.id):
-                try:
-                    with db_apis.session().begin() as session:
+            with db_apis.session().begin() as session:
+                if self.vrid_repo.exists(session, vrid.id):
+                    try:
                         self.vrid_repo.update(
                             session,
                             vrid.id,
@@ -478,35 +493,35 @@ class UpdateVRIDForLoadbalancerResource(BaseDatabaseTask):
                             vrid_port_id=vrid.vrid_port_id,
                             vrid=vrid.vrid,
                             subnet_id=vrid.subnet_id)
-                    LOG.debug(
-                        "Successfully updated DB vrid %s entry for loadbalancer resource %s",
-                        vrid.id,
-                        lb_resource.id)
-                except Exception as e:
-                    LOG.error(
-                        "Failed to update VRID data for VRID FIP %s due to %s",
-                        vrid.vrid_floating_ip,
-                        str(e))
-                    raise e
+                        LOG.debug(
+                            "Successfully updated DB vrid %s entry for loadbalancer resource %s",
+                            vrid.id,
+                            lb_resource.id)
+                    except Exception as e:
+                        LOG.error(
+                            "Failed to update VRID data for VRID FIP %s due to %s",
+                            vrid.vrid_floating_ip,
+                            str(e))
+                        raise e
 
-            else:
-                try:
-                    with db_apis.session().begin() as session:
-                        new_vrid = self.vrid_repo.create(
-                            session,
-                            id=vrid.id,
-                            owner=owner,
-                            vrid_floating_ip=vrid.vrid_floating_ip,
-                            vrid_port_id=vrid.vrid_port_id,
-                            vrid=vrid.vrid,
-                            subnet_id=vrid.subnet_id)
-                        self.vrid_created.append(new_vrid)
-                except Exception as e:
-                    LOG.error(
-                        "Failed to create VRID data for VRID FIP %s due to %s",
-                        vrid.vrid_floating_ip,
-                        str(e))
-                    raise e
+                else:
+                    try:
+                        with db_apis.session().begin() as session:
+                            new_vrid = self.vrid_repo.create(
+                                session,
+                                id=vrid.id,
+                                owner=owner,
+                                vrid_floating_ip=vrid.vrid_floating_ip,
+                                vrid_port_id=vrid.vrid_port_id,
+                                vrid=vrid.vrid,
+                                subnet_id=vrid.subnet_id)
+                            self.vrid_created.append(new_vrid)
+                    except Exception as e:
+                        LOG.error(
+                            "Failed to create VRID data for VRID FIP %s due to %s",
+                            vrid.vrid_floating_ip,
+                            str(e))
+                        raise e
 
     def revert(self, *args, **kwargs):
         for vrid in self.vrid_created:
@@ -808,7 +823,7 @@ class GetFlavorData(BaseDatabaseTask):
         else:
             return flavor_data
 
-    def execute(self, provisioning_status,flavor_id):
+    def execute(self, provisioning_status, flavor_id):
         if flavor_id:
             with db_apis.session().begin() as session:
                 flavor = self.flavor_repo.get(session, id=flavor_id)
@@ -1218,15 +1233,15 @@ class GetSpareComputeForProject(BaseDatabaseTask):
     def execute(self, compute_id=None):
         if compute_id is None:
             try:
-                vthunder = self.vthunder_repo.get_spare_vthunder(
-                    session)
+                with db_apis.session().begin() as session:
+                    vthunder = self.vthunder_repo.get_spare_vthunder(
+                        session)
 
-                if vthunder:
-                    self.spare = vthunder
-                    with db_apis.session().begin() as session:
+                    if vthunder:
+                        self.spare = vthunder
                         self.vthunder_repo.set_spare_vthunder_status(
                             session, self.spare.id, "BUSY")
-                    compute_id = vthunder.compute_id
+                        compute_id = vthunder.compute_id
             except Exception as e:
                 LOG.exception("Failed to find spare amphora due to %s", str(e))
                 raise exceptions.NoComputeForLoadbalancer()
@@ -1250,11 +1265,12 @@ class TryGetSpareCompute(BaseDatabaseTask):
 
     def execute(self):
         vthunder = None
-        try:
-            vthunder = self.vthunder_repo.get_spare_vthunder(
-                session)
-        except Exception:
-            LOG.debug('No spare amphora found for failover')
+        with db_apis.session().begin() as session:
+            try:
+                vthunder = self.vthunder_repo.get_spare_vthunder(
+                    session)
+            except Exception:
+                LOG.debug('No spare amphora found for failover')
 
         return vthunder
 

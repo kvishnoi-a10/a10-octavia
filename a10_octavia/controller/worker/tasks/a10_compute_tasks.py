@@ -66,7 +66,6 @@ class ComputeCreate(BaseComputeTask):
         if network_list:
             network_ids = network_ids.union(set(network_list))
         if loadbalancer:
-
             network_ids.add(lb.vip.network_id)
             for pool in lb.pools:
                 for member in pool.members:
