@@ -1103,7 +1103,7 @@ class MemberFlows(object):
                 name=f"{constants.DECREMENT_MEMBER_QUOTA_FLOW}-{member_id}"))
         if CONF.a10_global.handle_vrid:
             batch_update_members_flow.add(
-                self.get_delete_member_vrid_internal_subflow(constants.POOL, old_members))
+                self.get_delete_member_vrid_internal_subflow(pool, old_members))
 
         # Create new members
         batch_update_members_flow.add(lifecycle_tasks.MembersToErrorOnRevertTask(
