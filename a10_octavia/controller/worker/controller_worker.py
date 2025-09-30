@@ -675,7 +675,7 @@ class A10ControllerWorker(object):
                 vthunder_conf = CONF.hardware_thunder.devices.get(original_load_balancer[constants.PROJECT_ID], None)
                 device_dict = CONF.hardware_thunder.devices
                 store={constants.LOADBALANCER: original_load_balancer,
-                        constants.VIP: original_load_balancer.vip,
+                        constants.VIP: original_load_balancer[constants.VIP],
                         constants.UPDATE_DICT: load_balancer_updates,
                         constants.FLAVOR_ID: flavor_id,
                         constants.PROVISIONING_STATUS : db_lb[constants.PROVISIONING_STATUS]}
@@ -1448,7 +1448,7 @@ class A10ControllerWorker(object):
         busy = self._vthunder_busy_check(l7rule[constants.PROJECT_ID], False, ctx_flags, provider_lb)
         
         store={constants.L7RULE: l7rule,
-               constants.L7POLICY: l7policy_dict.to_dict(),
+               constants.L7POLICY: l7policy_dict.to_dict(recurse=True),
                constants.L7POLICY_ID: db_l7policy.id,
                constants.LISTENERS: listeners_dicts,
                constants.LOADBALANCER_ID: provider_lb[constants.LOADBALANCER_ID],
@@ -1489,7 +1489,7 @@ class A10ControllerWorker(object):
         busy = self._vthunder_busy_check(l7rule[constants.PROJECT_ID], False, ctx_flags, provider_lb)
         
         store={constants.L7RULE: l7rule,
-               constants.L7POLICY: l7policy.to_dict(),
+               constants.L7POLICY: l7policy.to_dict(recurse=True),
                constants.LISTENERS: listeners_dicts,
                constants.L7POLICY_ID: db_l7policy.id,
                constants.LOADBALANCER_ID: provider_lb[constants.LOADBALANCER_ID],
@@ -1541,7 +1541,7 @@ class A10ControllerWorker(object):
         busy = self._vthunder_busy_check(original_l7rule[constants.PROJECT_ID], False, ctx_flags, provider_lb)
         
         store={constants.L7RULE: original_l7rule,
-                constants.L7POLICY: l7policy_dict.to_dict(),
+                constants.L7POLICY: l7policy_dict.to_dict(recurse=True),
                 constants.LISTENERS: listeners_dicts,
                 constants.L7POLICY_ID: db_l7policy.id,
                 constants.LOADBALANCER_ID: provider_lb[constants.LOADBALANCER_ID],

@@ -50,7 +50,7 @@ class PolicyUtil(object):
         else:
             actionString = "HTTP::close"
         ruleString = ""
-        l7rules = l7policy.get("l7rules", [])
+        l7rules = (l7policy.get("l7rules", []) or l7policy.get("rules", []))
         if len(l7rules) <= 0:
             ruleString = "( true )"
         else:
