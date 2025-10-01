@@ -186,7 +186,7 @@ class Thunder(BaseDataModel):
 
     def __init__(self, id=None, vthunder_id=None, amphora_id=None,
                  device_name=None, ip_address=None, username=None,
-                 password=None, axapi_version=None, undercloud=None,
+                 axapi_version=None, undercloud=None,
                  loadbalancer_id=None, project_id=None, compute_id=None,
                  topology="STANDALONE", role="MASTER", last_udp_update=None, status="ACTIVE",
                  created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
@@ -200,7 +200,7 @@ class Thunder(BaseDataModel):
         self.device_name = device_name
         self.ip_address = ip_address
         self.username = username
-        self.password = password
+        # self.password = password
         self.axapi_version = axapi_version
         self.undercloud = undercloud
         self.loadbalancer_id = loadbalancer_id

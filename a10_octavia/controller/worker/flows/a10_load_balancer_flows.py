@@ -726,8 +726,12 @@ class LoadBalancerFlows(object):
             name='create_rack_vThunder_entry_in_database1',
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG),
             provides=(a10constants.VTHUNDER_CONFIG)))
+        lb_create_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
+            name='get_thunder_with_password',
+            requires=constants.LOADBALANCER,
+            provides=a10constants.VTHUNDER))
         lb_create_flow.add(vthunder_tasks.HandleACOSPartitionChange(
-            requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG),
+            requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG, a10constants.VTHUNDER),
             provides=a10constants.VTHUNDER_CONFIG))
         lb_create_flow.add(
             a10_database_tasks.CheckExistingThunderToProjectMappedEntries(

@@ -846,8 +846,8 @@ class HandleACOSPartitionChange(VThunderBaseTask):
                 loadbalancer[constants.LOADBALANCER_ID])
         return partition_name
 
-    def execute(self, loadbalancer, vthunder_config):
-        axapi_client = a10_utils.get_axapi_client(vthunder_config)
+    def execute(self, loadbalancer, vthunder_config, vthunder):
+        axapi_client = a10_utils.get_axapi_client(vthunder)
 
         partition_name = vthunder_config.partition_name
         hierarchical_mt = vthunder_config.hierarchical_multitenancy

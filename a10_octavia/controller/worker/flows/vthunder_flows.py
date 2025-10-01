@@ -205,11 +205,12 @@ class VThunderFlows(object):
         create_amp_for_lb_subflow.add(a10_database_tasks.CreateVThunderEntry(
             name=sf_name + '-' + a10constants.CREATE_VTHUNDER_ENTRY,
             requires=(constants.AMPHORA, constants.LOADBALANCER),
-            inject={a10constants.ROLE: role, a10constants.STATUS: constants.PENDING_CREATE, "flag": 0}))
+            inject={a10constants.ROLE: role, a10constants.STATUS: constants.PENDING_CREATE}))
         # Rebind requires vthunder in store and vMaster requires vThunder
         create_amp_for_lb_subflow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             name=sf_name + '-' + a10constants.VTHUNDER_BY_LB,
             requires=constants.LOADBALANCER,
+            inject={"flag": True},
             provides=a10constants.VTHUNDER))
         
         # Get VThunder details from database
@@ -233,10 +234,6 @@ class VThunderFlows(object):
         create_amp_for_lb_subflow.add(vthunder_tasks.UpdateVThunderPassword(
             name=sf_name + '-' + a10constants.UPDATE_VTHUNDER_PASSWORD,
             requires=(a10constants.VTHUNDER, constants.LOADBALANCER),
-            provides=a10constants.VTHUNDER))
-        create_amp_for_lb_subflow.add(a10_database_tasks.UpdateVThunderEntry(
-            name=sf_name + '-' + a10constants.UPDATE_VTHUNDER_ENTRY,
-            requires=(constants.LOADBALANCER, a10constants.VTHUNDER),
             provides=a10constants.VTHUNDER))
         
         create_amp_for_lb_subflow.add(vthunder_tasks.VThunderComputeConnectivityWait(
@@ -351,7 +348,7 @@ class VThunderFlows(object):
         vthunder_for_amphora_subflow.add(a10_database_tasks.CreateVThunderEntry(
             name=sf_name + '-' + a10constants.CREATE_VTHUNDER_ENTRY,
             requires=(constants.AMPHORA, constants.LOADBALANCER),
-            inject={"role": role, "status": constants.PENDING_CREATE, "flag": 1}))
+            inject={"role": role, "status": constants.PENDING_CREATE}))
         # Get VThunder details from database
         vthunder_for_amphora_subflow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             name=sf_name + '-' + a10constants.VTHUNDER_BY_LB,

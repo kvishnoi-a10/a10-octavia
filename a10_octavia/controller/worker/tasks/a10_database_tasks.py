@@ -91,17 +91,10 @@ class GetVThunderAmphora(BaseDatabaseTask):
 class CreateVThunderEntry(BaseDatabaseTask):
     """ Create VThunder device entry in DB"""
 
-    def execute(self, amphora, loadbalancer, role, status, flag):
+    def execute(self, amphora, loadbalancer, role, status):
         vthunder_id = uuidutils.generate_uuid()
-
-        barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
         
         username = CONF.vthunder.default_vthunder_username
-
-        if flag:
-            password = a10_task_utils.get_password(barbican_client)
-        else:
-            password = CONF.vthunder.default_vthunder_password
         
         axapi_version = CONF.vthunder.default_axapi_version
         topology = CONF.a10_controller_worker.loadbalancer_topology
@@ -118,7 +111,7 @@ class CreateVThunderEntry(BaseDatabaseTask):
                 session, vthunder_id=vthunder_id,
                 amphora_id=amphora[constants.ID],
                 device_name=vthunder_id, username=username,
-                password=password, ip_address=amphora[constants.LB_NETWORK_IP],
+                ip_address=amphora[constants.LB_NETWORK_IP],
                 undercloud=False, axapi_version=axapi_version,
                 loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID],
                 project_id=loadbalancer[constants.PROJECT_ID],
@@ -191,42 +184,23 @@ class DeleteVThunderEntry(BaseDatabaseTask):
             pass
         LOG.info("Successfully deleted vthunder entry in database.")
 
-class UpdateVThunderEntry(BaseDatabaseTask):
-    def execute(self, loadbalancer, vthunder):
-        loadbalancer_id = loadbalancer.get(constants.LOADBALANCER_ID)
-        with db_apis.session().begin() as session:
-            vthunder_db = self.vthunder_repo.get_vthunder_from_lb(
-                session, loadbalancer_id)
-            if vthunder_db.password != vthunder.password:
-                self.vthunder_repo.update(
-                            session,
-                            vthunder.id,
-                            password=vthunder.password,
-                            updated_at=datetime.utcnow())
-                updated_vthunder = self.vthunder_repo.get_vthunder_from_lb(
-                        session, loadbalancer_id)
-                if vthunder.topology == constants.TOPOLOGY_ACTIVE_STANDBY:
-                        vthunder_backup = self.vthunder_repo.get_backup_vthunder_from_lb(session, loadbalancer_id)
-                        self.vthunder_repo.update(
-                            session,
-                            vthunder_backup.id,
-                            password=vthunder.password,
-                            updated_at=datetime.utcnow())
-        if vthunder is None:
-            return None
-        return updated_vthunder
-
-
 class GetVThunderByLoadBalancer(BaseDatabaseTask):
     """Get VThunder from db using LoadBalancer"""
 
-    def execute(self, loadbalancer, master_amphora_status=True):
+    def execute(self, loadbalancer, master_amphora_status=True, flag=False):
         loadbalancer_id = loadbalancer.get(constants.LOADBALANCER_ID)
         with db_apis.session().begin() as session:
+            barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
             vthunder = self.vthunder_repo.get_vthunder_from_lb(
                 session, loadbalancer_id)
+            
             if vthunder:
-                vthunder.password=a10_task_utils.decode_base64(vthunder.password)
+                if flag:
+                    vthunder.password = CONF.vthunder.default_vthunder_password
+                else:
+                    vthunder.password = a10_task_utils.get_password(barbican_client)
+                vthunder.password = a10_task_utils.decode_base64(vthunder.password)
+                
             if not master_amphora_status:
                 vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                     session, loadbalancer_id)
@@ -307,8 +281,6 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
 
     def execute(self, loadbalancer, vthunder_config):
         hierarchical_mt = vthunder_config.hierarchical_multitenancy
-        barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
-        encoded_password = a10_task_utils.get_password(barbican_client)
         try:
             with db_apis.session().begin() as session:
                 vthunder = self.vthunder_repo.create(
@@ -316,7 +288,6 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
                     vthunder_id=uuidutils.generate_uuid(),
                     device_name=vthunder_config.device_name,
                     username=vthunder_config.username,
-                    password=encoded_password,
                     ip_address=vthunder_config.ip_address,
                     undercloud=vthunder_config.undercloud,
                     loadbalancer_id=loadbalancer[constants.LOADBALANCER_ID],
