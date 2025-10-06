@@ -34,12 +34,13 @@ from a10_octavia.common import utils as a10_utils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-def get_password(barbican_client, secret_name='vthunder_password'):
+def get_password(barbican_client, project_id):
     """
     Retrieve a password secret from Barbican.
     Ensures the secret exists, is not expired (if expiration is set), and has a payload.
     """
     try:
+        secret_name = project_id + '_vthunder_password'
         secrets = barbican_client.secrets.list(name=secret_name)
         if not secrets:
             LOG.error("No secret found with name: '%s'", secret_name)

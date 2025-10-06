@@ -106,7 +106,7 @@ class UpdateVThunderPassword(VThunderBaseTask):
     def change_password(self, token, base_url, loadbalancer):
         
         barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
-        new_password_encrypt = a10_task_utils.get_password(barbican_client)
+        new_password_encrypt = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
         new_password = a10_task_utils.decode_base64(new_password_encrypt)
         headers = {
         "Authorization": f"A10 {token}",
@@ -374,80 +374,81 @@ class EnableInterface(VThunderBaseTask):
         with session.begin():
             db_lb = self.loadbalancer_repo.get(
                 session, id=loadbalancer[constants.LOADBALANCER_ID])
-        amphora_id = db_lb.amphorae[0].id
-        lb_exists_flag = self.loadbalancer_repo.check_lb_exists_in_project(
-            db_apis.get_session(),
-            loadbalancer[constants.PROJECT_ID])
+        if db_lb.amphorae:
+            amphora_id = db_lb.amphorae[0].id
+            lb_exists_flag = self.loadbalancer_repo.check_lb_exists_in_project(
+                db_apis.get_session(),
+                loadbalancer[constants.PROJECT_ID])
 
-        if not lb_exists_flag:
-            compute_id = db_lb.amphorae[0].compute_id
-            network_driver = utils.get_network_driver()
-            nics = network_driver.get_plugged_networks(compute_id)
-            updated_ports[amphora_id] = []
-            updated_ports[amphora_id].append(nics[1])
-        try:
-            if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
-                interfaces = self.axapi_client.interface.get_list()
-                if (not lb_exists_flag and topology == "ACTIVE_STANDBY") or topology == "SINGLE":
-                    # Clear un-matched static IPv6 addresses interfaces
-                    for i in range(len(interfaces['interface']['ethernet-list'])):
-                        eth = interfaces['interface']['ethernet-list'][i]
-                        ifnum = eth['ifnum']
-                        if "ipv6" in eth and "address-list" in eth['ipv6']:
-                            old_addr = eth['ipv6']['address-list'][0].get('ipv6-addr')
-                            if ifnum_address.get(ifnum) and ifnum_address[ifnum] == old_addr:
-                                continue
-                            self.axapi_client.system.action.setInterface(ifnum, None, 6)
+            if not lb_exists_flag:
+                compute_id = db_lb.amphorae[0].compute_id
+                network_driver = utils.get_network_driver()
+                nics = network_driver.get_plugged_networks(compute_id)
+                updated_ports[amphora_id] = []
+                updated_ports[amphora_id].append(nics[1])
+            try:
+                if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
+                    interfaces = self.axapi_client.interface.get_list()
+                    if (not lb_exists_flag and topology == "ACTIVE_STANDBY") or topology == "SINGLE":
+                        # Clear un-matched static IPv6 addresses interfaces
+                        for i in range(len(interfaces['interface']['ethernet-list'])):
+                            eth = interfaces['interface']['ethernet-list'][i]
+                            ifnum = eth['ifnum']
+                            if "ipv6" in eth and "address-list" in eth['ipv6']:
+                                old_addr = eth['ipv6']['address-list'][0].get('ipv6-addr')
+                                if ifnum_address.get(ifnum) and ifnum_address[ifnum] == old_addr:
+                                    continue
+                                self.axapi_client.system.action.setInterface(ifnum, None, 6)
 
-                    # Enable and Configure Interfaces
-                    for i in range(len(interfaces['interface']['ethernet-list'])):
-                        ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']
-                        if ifnum_address.get(ifnum):
-                            dual = a10_utils.is_dual_stack(ifnum_address, ifnum)
-                            self.axapi_client.system.action.setInterface(ifnum,
-                                                                         ifnum_address[ifnum],
-                                                                         6, dual)
-                        else:
-                            self.axapi_client.system.action.setInterface(ifnum, None, 4)
-                    LOG.debug("Configured the ethernet interface for vThunder: %s", vthunder.id)
-                else:
-                    # Clear un-matched static IPv6 addresses interfaces
-                    for i in range(len(interfaces['interface']['ethernet-list'])):
-                        eth = interfaces['interface']['ethernet-list'][i]
-                        ifnum = eth['ifnum']
-                        if "ipv6" in eth and "address-list" in eth['ipv6']:
-                            old_addr = eth['ipv6']['address-list'][0].get('ipv6-addr')
-                            if ifnum_address.get(ifnum) and ifnum_address[ifnum] == old_addr:
-                                continue
-                            if backup_vthunder:
-                                self.axapi_client.device_context.switch(2, None)
+                        # Enable and Configure Interfaces
+                        for i in range(len(interfaces['interface']['ethernet-list'])):
+                            ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']
+                            if ifnum_address.get(ifnum):
+                                dual = a10_utils.is_dual_stack(ifnum_address, ifnum)
+                                self.axapi_client.system.action.setInterface(ifnum,
+                                                                            ifnum_address[ifnum],
+                                                                            6, dual)
+                            else:
+                                self.axapi_client.system.action.setInterface(ifnum, None, 4)
+                        LOG.debug("Configured the ethernet interface for vThunder: %s", vthunder.id)
+                    else:
+                        # Clear un-matched static IPv6 addresses interfaces
+                        for i in range(len(interfaces['interface']['ethernet-list'])):
+                            eth = interfaces['interface']['ethernet-list'][i]
+                            ifnum = eth['ifnum']
+                            if "ipv6" in eth and "address-list" in eth['ipv6']:
+                                old_addr = eth['ipv6']['address-list'][0].get('ipv6-addr')
+                                if ifnum_address.get(ifnum) and ifnum_address[ifnum] == old_addr:
+                                    continue
+                                if backup_vthunder:
+                                    self.axapi_client.device_context.switch(2, None)
+                                else:
+                                    self.axapi_client.device_context.switch(1, None)
+                                self.axapi_client.system.action.setInterface(ifnum, None, 6)
+
+                        # Enable and Configure Interfaces
+                        for i in range(len(interfaces['interface']['ethernet-list'])):
+                            ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']
+                            if ifnum_address.get(ifnum):
+                                dual = a10_utils.is_dual_stack(ifnum_address, ifnum)
+                                if backup_vthunder:
+                                    self.axapi_client.device_context.switch(2, None)
+                                    self.axapi_client.system.action.setInterface(ifnum,
+                                                                                ifnum_address[ifnum],
+                                                                                6, dual)
+                                else:
+                                    self.axapi_client.device_context.switch(1, None)
+                                    self.axapi_client.system.action.setInterface(ifnum,
+                                                                                ifnum_address[ifnum],
+                                                                                6, dual)
                             else:
                                 self.axapi_client.device_context.switch(1, None)
-                            self.axapi_client.system.action.setInterface(ifnum, None, 6)
-
-                    # Enable and Configure Interfaces
-                    for i in range(len(interfaces['interface']['ethernet-list'])):
-                        ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']
-                        if ifnum_address.get(ifnum):
-                            dual = a10_utils.is_dual_stack(ifnum_address, ifnum)
-                            if backup_vthunder:
+                                self.axapi_client.system.action.setInterface(ifnum, None, 4)
                                 self.axapi_client.device_context.switch(2, None)
-                                self.axapi_client.system.action.setInterface(ifnum,
-                                                                             ifnum_address[ifnum],
-                                                                             6, dual)
-                            else:
-                                self.axapi_client.device_context.switch(1, None)
-                                self.axapi_client.system.action.setInterface(ifnum,
-                                                                             ifnum_address[ifnum],
-                                                                             6, dual)
-                        else:
-                            self.axapi_client.device_context.switch(1, None)
-                            self.axapi_client.system.action.setInterface(ifnum, None, 4)
-                            self.axapi_client.device_context.switch(2, None)
-                            self.axapi_client.system.action.setInterface(ifnum, None, 4)
-        except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
-            LOG.exception("Failed to configure ethernet interface vThunder: %s", str(e))
-            raise e
+                                self.axapi_client.system.action.setInterface(ifnum, None, 4)
+            except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
+                LOG.exception("Failed to configure ethernet interface vThunder: %s", str(e))
+                raise e
 
 
 class GetValidIPv6Address(VThunderBaseTask):
@@ -461,30 +462,31 @@ class GetValidIPv6Address(VThunderBaseTask):
             with session.begin():
                 db_lb = self.loadbalancer_repo.get(
                     session, id=loadbalancer[constants.LOADBALANCER_ID])
-            compute_id = db_lb.amphorae[0].compute_id
-            network_driver = utils.get_network_driver()
-            nics = network_driver.get_plugged_networks(compute_id)
-            if topology == "ACTIVE_STANDBY":
-                backup_nics = network_driver.get_plugged_networks(
-                    db_lb.amphorae[1].compute_id)
-                nics = nics + backup_nics
-            address_list = CONF.a10_global.subnet_ipv6_addresses
-            if address_list:
-                address_list[0] = address_list[0].strip("[")
-                address_list[len(address_list) - 1] = address_list[len(address_list) - 1].strip("]")
-            else:
-                address_list = []
-            interfaces = self.axapi_client.interface.get_list()
-            for i in range(len(interfaces['interface']['ethernet-list'])):
-                ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']
-                ifnum_oper = self.axapi_client.interface.ethernet.get_oper(ifnum)
-                ifnum_address, dual = a10_utils.get_ipv6_address(ifnum_oper, nics,
-                                                                 address_list, loadbalancers_list)
-                if ifnum_address:
-                    ipv6_address_list[ifnum] = ifnum_address
-                    if dual:
-                        a10_utils.set_dual_stack(ipv6_address_list, ifnum)
-            return ipv6_address_list
+            if db_lb.amphorae:
+                compute_id = db_lb.amphorae[0].compute_id
+                network_driver = utils.get_network_driver()
+                nics = network_driver.get_plugged_networks(compute_id)
+                if topology == "ACTIVE_STANDBY":
+                    backup_nics = network_driver.get_plugged_networks(
+                        db_lb.amphorae[1].compute_id)
+                    nics = nics + backup_nics
+                address_list = CONF.a10_global.subnet_ipv6_addresses
+                if address_list:
+                    address_list[0] = address_list[0].strip("[")
+                    address_list[len(address_list) - 1] = address_list[len(address_list) - 1].strip("]")
+                else:
+                    address_list = []
+                interfaces = self.axapi_client.interface.get_list()
+                for i in range(len(interfaces['interface']['ethernet-list'])):
+                    ifnum = interfaces['interface']['ethernet-list'][i]['ifnum']
+                    ifnum_oper = self.axapi_client.interface.ethernet.get_oper(ifnum)
+                    ifnum_address, dual = a10_utils.get_ipv6_address(ifnum_oper, nics,
+                                                                    address_list, loadbalancers_list)
+                    if ifnum_address:
+                        ipv6_address_list[ifnum] = ifnum_address
+                        if dual:
+                            a10_utils.set_dual_stack(ipv6_address_list, ifnum)
+                return ipv6_address_list
         else:
             return None
 
@@ -1464,7 +1466,7 @@ class AmphoraePostNetworkUnplug(VThunderBaseTask):
             with session.begin():
                 db_lb = self.loadbalancer_repo.get(
                     session, id=loadbalancer[constants.LOADBALANCER_ID])
-            if db_lb.amphorae[0]:
+            if db_lb.amphorae:
                 amphora_id = db_lb.amphorae[0].id
                 if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
                     self.axapi_client.system.action.write_memory()
@@ -1481,6 +1483,8 @@ class AmphoraePostNetworkUnplug(VThunderBaseTask):
                     LOG.debug("Successfully rebooted/reloaded vThunder: %s", vthunder.id)
                 else:
                     LOG.debug("vThunder reboot/relaod is not required for member addition.")
+            else:
+                pass
         except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
             LOG.exception("Failed to reboot/reload vthunder device: %s", str(e))
             raise e
