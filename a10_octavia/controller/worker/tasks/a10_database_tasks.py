@@ -196,7 +196,8 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
             
             if vthunder:
                 if flag:
-                    vthunder.password = CONF.vthunder.default_vthunder_password
+                    secret_name = loadbalancer.get(constants.PROJECT_ID) + '_default_vthunder_password'
+                    vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID), secret_name)
                 else:
                     vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
                 vthunder.password = a10_task_utils.decode_base64(vthunder.password)
@@ -204,6 +205,9 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
             if not master_amphora_status:
                 vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                     session, loadbalancer_id)
+                vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
+                vthunder.password = a10_task_utils.decode_base64(vthunder.password)
+                
         if vthunder is None:
             return None
         return vthunder
@@ -371,7 +375,6 @@ class CreateSpareVThunderEntry(BaseDatabaseTask):
         vthunder_id = uuidutils.generate_uuid()
 
         username = CONF.vthunder.default_vthunder_username
-        password = CONF.vthunder.default_vthunder_password
         axapi_version = CONF.vthunder.default_axapi_version
         with db_apis.session().begin() as session:
             vthunder = self.vthunder_repo.create(
