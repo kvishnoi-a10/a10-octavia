@@ -98,7 +98,7 @@ class DeleteSessionPersistence(task.Task):
             for sp_type in PERS_TYPE:
                 try:
                     sp_template = getattr(self.axapi_client.slb.template, sp_type)
-                    sp_template.delete(pool[constants.POOL_ID])
+                    sp_template.delete(pool_id)
                     LOG.debug("Successfully deleted session persistence template for pool: %s",
                               pool_id)
                 except acos_errors.NotFound:
