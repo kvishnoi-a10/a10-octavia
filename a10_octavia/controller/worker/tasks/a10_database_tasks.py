@@ -219,6 +219,7 @@ class GetBackupVThunderByLoadBalancer(BaseDatabaseTask):
     def execute(self, loadbalancer, vthunder=None):
         loadbalancer_id = loadbalancer[constants.LOADBALANCER_ID]
         with db_apis.session().begin() as session:
+            barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
             backup_vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                 session, loadbalancer_id)
 
@@ -227,6 +228,9 @@ class GetBackupVThunderByLoadBalancer(BaseDatabaseTask):
                 if backup_vthunder.ip_address == vthunder.ip_address:
                     backup_vthunder = self.vthunder_repo.get_vthunder_from_lb(
                         session, loadbalancer_id)
+            if backup_vthunder:
+                backup_vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
+                backup_vthunder.password = a10_task_utils.decode_base64(vthunder.password)
             return backup_vthunder
         LOG.info("Successfully fetched vThunder details for LB")
 

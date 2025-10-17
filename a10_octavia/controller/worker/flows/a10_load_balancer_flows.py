@@ -335,12 +335,13 @@ class LoadBalancerFlows(object):
             if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
                 delete_LB_flow.add(vthunder_tasks.GetValidIPv6Address(
                     name=a10constants.GET_BACKUP_IPV6_ADDRESS,
-                    rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
+                    inject={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
                     requires=(constants.LOADBALANCER, a10constants.VTHUNDER,
                               a10constants.LOADBALANCERS_LIST),
                     provides=a10constants.IPV6_ADDRESS_LIST))
                 delete_LB_flow.add(vthunder_tasks.EnableInterface(
                     name=a10constants.BACKUP_ENABLE_INTERFACE,
+                    inject={a10constants.BACKUP_VTHUNDER: a10constants.BACKUP_VTHUNDER},
                     requires=(a10constants.VTHUNDER, constants.LOADBALANCER,
                               constants.UPDATED_PORTS, a10constants.BACKUP_VTHUNDER,
                               a10constants.IPV6_ADDRESS_LIST)))

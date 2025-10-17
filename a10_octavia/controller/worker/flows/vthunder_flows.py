@@ -224,17 +224,25 @@ class VThunderFlows(object):
                     name=sf_name + '-' + a10constants.BACKUP_CONNECTIVITY_WAIT,
                     rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
                     requires=constants.AMPHORA))
+
+            # Change default password of backup vthunder
+            create_amp_for_lb_subflow.add(vthunder_tasks.UpdateVThunderPassword(
+                name=sf_name + '-' + a10constants.BACKUP_UPDATE_VTHUNDER_PASSWORD,
+                rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
+                requires=(a10constants.VTHUNDER, constants.LOADBALANCER),
+                provides=a10constants.VTHUNDER))
+
         else:
             create_amp_for_lb_subflow.add(
                 vthunder_tasks.VThunderComputeConnectivityWait(
                     name=sf_name + '-' + a10constants.WAIT_FOR_VTHUNDER_CONNECTIVITY,
                     requires=(a10constants.VTHUNDER, constants.AMPHORA)))
 
-        # Change default password of vthunder
-        create_amp_for_lb_subflow.add(vthunder_tasks.UpdateVThunderPassword(
-            name=sf_name + '-' + a10constants.UPDATE_VTHUNDER_PASSWORD,
-            requires=(a10constants.VTHUNDER, constants.LOADBALANCER),
-            provides=a10constants.VTHUNDER))
+            # Change default password of vthunder
+            create_amp_for_lb_subflow.add(vthunder_tasks.UpdateVThunderPassword(
+                name=sf_name + '-' + a10constants.UPDATE_VTHUNDER_PASSWORD,
+                requires=(a10constants.VTHUNDER, constants.LOADBALANCER),
+                provides=a10constants.VTHUNDER))
         
         create_amp_for_lb_subflow.add(vthunder_tasks.VThunderComputeConnectivityWait(
             name=sf_name + '-' + a10constants.WAIT_FOR_VTHUNDER_CONNECTIVITY_RETRY,
