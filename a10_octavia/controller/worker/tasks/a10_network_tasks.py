@@ -1109,7 +1109,9 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
             self._delete_vrid_port(vrid.vrid_port_id)
 
         try:
+            LOG.debug("lb_resource in _replace_vrid_port: %s", lb_resource)
             amphorae = a10_task_utils.attribute_search(lb_resource, 'amphorae')
+            LOG.debug("amphorae in _replace_vrid_port: %s", amphorae)
             fip_obj = self.network_driver.allocate_vrid_fip(
                 vrid, subnet.network_id, amphorae,
                 fixed_ip=conf_floating_ip)
@@ -1139,6 +1141,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
         objects from DB else need update existing ones.
         """
         updated_vrid_list = []
+        LOG.debug("lb_resource in HandleVRIDFloatingIP: %s", lb_resource)
         if not subnet:
             LOG.warning("No subnet provided to HandleVRIDFloatingIP; skipping task.")
             return updated_vrid_list
@@ -1599,3 +1602,4 @@ class ValidateSubnet(BaseNetworkTask):
                     member_subnet.cidr):
                 raise exceptions.IPAddressNotInSubnetRangeError(
                     member.get('address'), member_subnet.cidr)
+

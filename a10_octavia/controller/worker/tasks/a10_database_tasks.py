@@ -474,7 +474,7 @@ class UpdateVRIDForLoadbalancerResource(BaseDatabaseTask):
                         LOG.debug(
                             "Successfully updated DB vrid %s entry for loadbalancer resource %s",
                             vrid.id,
-                            lb_resource.id)
+                            lb_resource[constants.LOADBALANCER_ID])
                     except Exception as e:
                         LOG.error(
                             "Failed to update VRID data for VRID FIP %s due to %s",

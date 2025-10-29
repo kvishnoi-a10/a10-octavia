@@ -286,7 +286,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 ):
                     interface = self._get_plugged_interface(
                         amphora.compute_id, subnet.network_id, amphora.lb_network_ip)
-                    self._add_allowed_address_pairs_to_port(interface.port_id, addr_list)
+                    self._add_allowed_address_pair_to_port(interface.port_id, addr_list)
         except Exception as e:
             LOG.exception("Failed to reserve addresses on subnet %s: %s", subnet_id, str(e))
             raise
@@ -337,7 +337,8 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 router_external=network.is_router_external))
         return network_list_datamodel
 
-    def _add_allowed_address_pairs_to_port(self, port_id, ip_address_list):
+    def _add_allowed_address_pair_to_port(self, port_id, ip_address_list):
+        import rpdb; rpdb.set_trace()
         port = self.network_proxy.get_port(port_id)
         aap_ips = port.allowed_address_pairs
         if isinstance(ip_address_list, list):
@@ -345,32 +346,56 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 aap_ips.append({'ip_address': ip})
         else:
             aap_ips.append({'ip_address': ip_address_list})
-        # aap = {
-        #     'port': {
-        #         'allowed_address_pairs': aap_ips
-        #     }
-        # }
-        self.network_proxy.update_port(port_id,
-                                       allowed_address_pairs=aap_ips)
+        self.network_proxy.update_port(port_id,allowed_address_pairs=aap_ips)
+    
+    def allocate_vrid_fip(self, vrid, network_id, amphorae, fixed_ip=None):
 
-    def allocate_vrid_fip(self, project_id, network_id, subnet_id, ip_address=None):
+        fixed_ip_json = {}
+        if vrid.subnet_id:
+            fixed_ip_json['subnet_id'] = vrid.subnet_id
+        if fixed_ip:
+            fixed_ip_json['ip_address'] = fixed_ip
+
+        # Make sure we are backward compatible with older neutron
+        if self._check_extension_enabled(aap.PROJECT_ID_ALIAS):
+            project_id_key = 'project_id'
+        else:
+            project_id_key = 'tenant_id'
+
+        # It can be assumed that network_id exists
+        port = {'port': {'name': 'octavia-vrid-fip-' + vrid.id,
+                         'network_id': network_id,
+                         'admin_state_up': False,
+                         'device_id': 'vrid-{0}'.format(vrid.id),
+                         'device_owner': constants.OCTAVIA_OWNER,
+                         project_id_key: vrid.owner}}
+        if fixed_ip_json:
+            port['port']['fixed_ips'] = [fixed_ip_json]
+
         try:
-            fixed_ips = [{'subnet_id': subnet_id}]
-            if ip_address:
-                fixed_ips[0]['ip_address'] = ip_address
-
-            new_port = self.network_proxy.create_port(
-                name=f"octavia-port-{network_id}",
-                network_id=network_id,
-                admin_state_up=True,
-                device_owner=a10constants.OCTAVIA_OWNER,
-                project_id=project_id,
-                fixed_ips=fixed_ips
-            )
-            return utils.convert_port_dict_to_model(new_port)
+            new_port = self.network_proxy.create_port(**port['port'])
         except Exception as e:
-            LOG.exception("Failed to allocate VRID FIP on network %s: %s", network_id, str(e))
-            raise
+            message = _('Error creating neutron port on network '
+                        '{network_id}.').format(
+                network_id=network_id)
+            LOG.exception(message)
+            raise base.AllocateVIPException(
+                message,
+                orig_msg=getattr(e, 'message', None),
+                orig_code=getattr(e, 'status_code', None),
+            )
+        new_port = utils.convert_port_to_model(new_port)
+
+        fixed_ip = new_port.fixed_ips[0].ip_address
+        for amphora in filter(
+            lambda amp: amp['status'] == constants.AMPHORA_ALLOCATED,
+                amphorae or []):
+            interface = self._get_plugged_interface(
+                amphora['compute_id'], network_id, amphora['lb_network_ip'])
+            self._add_allowed_address_pair_to_port(interface.port_id, fixed_ip)
+
+        return new_port
+    
 
     def allow_use_any_source_ip_on_egress(self, network_id, amphora):
         interface = self._get_plugged_interface(
@@ -382,7 +407,7 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
                 if aap_ip['ip_address'] == '0.0.0.0/0':
                     break
             else:
-                self._add_allowed_address_pairs_to_port(interface.port_id, ['0.0.0.0/0'])
+                self._add_allowed_address_pair_to_port(interface.port_id, ['0.0.0.0/0'])
         else:
             raise exceptions.InterfaceNotFound(amphora.compute_id, network_id)
 
@@ -415,11 +440,11 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
     def deallocate_vrid_fip(self, vrid, subnet, amphorae):
         self.delete_port(vrid.vrid_port_id)
         for amphora in filter(
-            lambda amp: amp.status == constants.AMPHORA_ALLOCATED,
-                amphorae):
+            lambda amp: amp['status'] == constants.AMPHORA_ALLOCATED,
+                amphorae or []):
             interface = self._get_plugged_interface(
-                amphora.compute_id, subnet.network_id,
-                amphora.lb_network_ip)
+                amphora['compute_id'], subnet.network_id,
+                amphora['lb_network_ip'])
             if interface is not None:
                 self._remove_allowed_address_pair_from_port(
                     interface.port_id, vrid.vrid_floating_ip)
@@ -477,3 +502,4 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         except Exception as e:
             LOG.exception(str(e))
             raise e
+

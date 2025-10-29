@@ -227,7 +227,15 @@ def attribute_search(lb_resource, attr_name):
 
     :return: Returns the requested attribute value or none
     """
-    if hasattr(lb_resource, attr_name):
+    if isinstance(lb_resource, dict):
+        if attr_name in lb_resource:
+            return lb_resource[attr_name]
+        # Check common nested keys
+        for key in ('pool', 'listener', 'load_balancer'):
+            if key in lb_resource:
+                return attribute_search(lb_resource[key], attr_name)
+
+    elif hasattr(lb_resource, attr_name):
         return getattr(lb_resource, attr_name)
     elif hasattr(lb_resource, 'pool'):
         return attribute_search(lb_resource.pool, attr_name)
@@ -319,3 +327,4 @@ def acos_version_cmp(ver1, ver2):
         if vtup1[index] != vtup2[index]:
             return vtup1[index] - vtup2[index]
     return 0
+
