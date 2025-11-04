@@ -25,6 +25,7 @@ from taskflow import task
 from taskflow.types import failure
 
 from octavia.common import constants
+from octavia.common import data_models as o_data_models
 from octavia.controller.worker import task_utils
 from octavia.db import api as db_apis
 from octavia.network import base
@@ -573,26 +574,25 @@ class HandleNetworkDeltas(BaseNetworkTask):
                     LOG.exception("Unable to delete port %s", port_id)
 
 
-# class PlugVIP(BaseNetworkTask):
-#     """Task to plumb a VIP."""
-
+#class PlugVIP(BaseNetworkTask):
+#    """Task to plumb a VIP."""
+#
 #     def execute(self, loadbalancer):
 #         """Plumb a vip to an amphora."""
-
+# 
 #         LOG.debug("Plumbing VIP for loadbalancer id: %s", loadbalancer.id)
-
 #         amps_data = self.network_driver.plug_vip(loadbalancer,
 #                                                  loadbalancer.vip)
 #         return amps_data
-
+# 
 #     def revert(self, result, loadbalancer, *args, **kwargs):
 #         """Handle a failure to plumb a vip."""
-
+# 
 #         if isinstance(result, failure.Failure):
 #             return
 #         LOG.warning("Unable to plug VIP for loadbalancer id %s",
 #                     loadbalancer.id)
-
+# 
 #         try:
 #             # Make sure we have the current port IDs for cleanup
 #             for amp_data in result:
@@ -602,7 +602,7 @@ class HandleNetworkDeltas(BaseNetworkTask):
 #                         loadbalancer.amphorae):
 #                     amphora.vrrp_port_id = amp_data.vrrp_port_id
 #                     amphora.ha_port_id = amp_data.ha_port_id
-
+# 
 #             self.network_driver.unplug_vip_revert(loadbalancer, loadbalancer.vip)
 #         except Exception as e:
 #             LOG.error("Failed to unplug VIP.  Resources may still "
@@ -660,18 +660,22 @@ class PlugVIPAmphora(BaseNetworkTask):
         # amp_data = self.network_driver.plug_aap_port(
         #     loadbalancer, loadbalancer.vip, amphora, subnet)
         # return amp_data
-        LOG.debug("Plumbing VIP for amphora id: %s",
-                  amphora[0][constants.ID])
+        amps_data = []
         session = db_apis.get_session()
         with session.begin():
-            db_amp = self.amphora_repo.get(session,
-                                           id=amphora[0][constants.ID])
-            db_subnet = self.network_driver.get_subnet(subnet.id)
-            db_lb = self.loadbalancer_repo.get(
-                session, id=loadbalancer[constants.LOADBALANCER_ID])
-        amp_data = self.network_driver.plug_aap_port(
-            db_lb, db_lb.vip, db_amp, db_subnet)
-        return amp_data.to_dict()
+            for amphora in filter(
+                lambda amp: amp[constants.STATUS] == constants.AMPHORA_ALLOCATED,
+                    amphora):
+                LOG.debug("Plumbing VIP for amphora id: %s",
+                  amphora[constants.ID])
+                db_amp = self.amphora_repo.get(session,
+                                            id=amphora[constants.ID])
+                db_subnet = self.network_driver.get_subnet(subnet.id)
+                db_lb = self.loadbalancer_repo.get(
+                    session, id=loadbalancer[constants.LOADBALANCER_ID])
+                amps_data.append(self.network_driver.plug_aap_port(
+                    db_lb, db_lb.vip, db_amp, db_subnet).to_dict())
+        return amps_data
 
     def revert(self, result, loadbalancer, amphora, subnet, *args, **kwargs):
         """Handle a failure to plumb a vip."""
@@ -774,8 +778,7 @@ class AllocateVIP(BaseNetworkTask):
             LOG.exception("Unable to allocate VIP")
             return
         vip = result
-        vip, additional_vips = result
-        vip = data_models.Vip(**vip)
+        vip = o_data_models.Vip(**vip)
         LOG.warning("Deallocating vip %s", vip.ip_address)
         try:
             self.network_driver.deallocate_vip(vip, lb_count_subnet)
@@ -1109,9 +1112,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
             self._delete_vrid_port(vrid.vrid_port_id)
 
         try:
-            LOG.debug("lb_resource in _replace_vrid_port: %s", lb_resource)
             amphorae = a10_task_utils.attribute_search(lb_resource, 'amphorae')
-            LOG.debug("amphorae in _replace_vrid_port: %s", amphorae)
             fip_obj = self.network_driver.allocate_vrid_fip(
                 vrid, subnet.network_id, amphorae,
                 fixed_ip=conf_floating_ip)
@@ -1141,7 +1142,6 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
         objects from DB else need update existing ones.
         """
         updated_vrid_list = []
-        LOG.debug("lb_resource in HandleVRIDFloatingIP: %s", lb_resource)
         if not subnet:
             LOG.warning("No subnet provided to HandleVRIDFloatingIP; skipping task.")
             return updated_vrid_list

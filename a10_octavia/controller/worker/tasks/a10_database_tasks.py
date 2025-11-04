@@ -88,6 +88,16 @@ class GetVThunderAmphora(BaseDatabaseTask):
         return amphora
 
 
+class PopulateLoadbalancer(BaseDatabaseTask):
+    """Task to update loadbalancer with amphora data"""
+    def execute(self, amphora, loadbalancer):
+        try:
+            loadbalancer['amphorae'] = amphora
+            return loadbalancer
+        except Exception as e:
+            LOG.exception("Failed to update loadbalancer with amphora: %s", str(e))
+
+
 class CreateVThunderEntry(BaseDatabaseTask):
     """ Create VThunder device entry in DB"""
 
@@ -474,7 +484,7 @@ class UpdateVRIDForLoadbalancerResource(BaseDatabaseTask):
                         LOG.debug(
                             "Successfully updated DB vrid %s entry for loadbalancer resource %s",
                             vrid.id,
-                            lb_resource[constants.LOADBALANCER_ID])
+                            lb_resource)
                     except Exception as e:
                         LOG.error(
                             "Failed to update VRID data for VRID FIP %s due to %s",

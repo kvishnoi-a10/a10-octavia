@@ -20,6 +20,7 @@ from oslo_log import log as logging
 from stevedore import driver as stevedore_driver
 
 from octavia.common import constants
+from octavia.common import data_models as o_data_models
 from octavia.i18n import _
 from octavia.network import base
 from octavia.network import data_models as n_data_models
@@ -43,6 +44,35 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
             name=CONF.controller_worker.compute_driver,
             invoke_on_load=True
         ).driver
+
+    def plug_aap_port(self, load_balancer, vip, amphora, subnet):
+        interface = self._get_plugged_interface(
+            amphora.compute_id, subnet.network_id, amphora.lb_network_ip)
+        if not interface:
+            interface = self.network_driver._plug_amphora_vip(amphora, subnet)
+
+        existing_port = self.network_proxy.get_port(interface.port_id)
+        aap_address_list = [pair['ip_address'] for pair in existing_port.allowed_address_pairs]
+        aap_address_list.append(vip.ip_address)
+        self._add_vip_address_pairs(interface.port_id, aap_address_list)
+
+        if self.sec_grp_enabled:
+            self._add_vip_security_group_to_port(load_balancer.id,
+                                                 interface.port_id)
+        vrrp_ip = None
+        for fixed_ip in interface.fixed_ips:
+            is_correct_subnet = fixed_ip.subnet_id == subnet.id
+            is_management_ip = fixed_ip.ip_address == amphora.lb_network_ip
+            if is_correct_subnet and not is_management_ip:
+                vrrp_ip = fixed_ip.ip_address
+                break
+        return o_data_models.Amphora(
+            id=amphora.id,
+            compute_id=amphora.compute_id,
+            vrrp_ip=vrrp_ip,
+            ha_ip=vip.ip_address,
+            vrrp_port_id=interface.port_id,
+            ha_port_id=vip.port_id)
 
     def _port_to_parent_port(self, port):
         fixed_ips = [n_data_models.FixedIP(subnet_id=fixed_ip.get('subnet_id'),
@@ -338,7 +368,6 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         return network_list_datamodel
 
     def _add_allowed_address_pair_to_port(self, port_id, ip_address_list):
-        import rpdb; rpdb.set_trace()
         port = self.network_proxy.get_port(port_id)
         aap_ips = port.allowed_address_pairs
         if isinstance(ip_address_list, list):

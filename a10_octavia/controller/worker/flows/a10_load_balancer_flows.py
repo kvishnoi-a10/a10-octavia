@@ -214,6 +214,11 @@ class LoadBalancerFlows(object):
             requires=[constants.LOADBALANCER, constants.UPDATE_DICT]))
 
         if CONF.a10_global.handle_vrid:
+            post_create_lb_flow.add(a10_database_tasks.PopulateLoadbalancer(
+            name=a10constants.POPULATE_LB,
+            requires=[constants.AMPHORA, constants.LOADBALANCER],
+            provides=constants.LOADBALANCER
+            ))
             post_create_lb_flow.add(self.handle_vrid_for_loadbalancer_subflow())
 
         if mark_active:
@@ -335,13 +340,12 @@ class LoadBalancerFlows(object):
             if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
                 delete_LB_flow.add(vthunder_tasks.GetValidIPv6Address(
                     name=a10constants.GET_BACKUP_IPV6_ADDRESS,
-                    inject={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
+                    rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
                     requires=(constants.LOADBALANCER, a10constants.VTHUNDER,
                               a10constants.LOADBALANCERS_LIST),
                     provides=a10constants.IPV6_ADDRESS_LIST))
                 delete_LB_flow.add(vthunder_tasks.EnableInterface(
                     name=a10constants.BACKUP_ENABLE_INTERFACE,
-                    inject={a10constants.BACKUP_VTHUNDER: a10constants.BACKUP_VTHUNDER},
                     requires=(a10constants.VTHUNDER, constants.LOADBALANCER,
                               constants.UPDATED_PORTS, a10constants.BACKUP_VTHUNDER,
                               a10constants.IPV6_ADDRESS_LIST)))
