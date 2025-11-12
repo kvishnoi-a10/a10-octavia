@@ -16,6 +16,7 @@ import json
 import logging
 import re
 import base64
+import binascii
 from datetime import datetime
 
 from oslo_config import cfg
@@ -33,6 +34,49 @@ from a10_octavia.common import utils as a10_utils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
+def get_password(barbican_client, project_id, secret_name = None):
+    """
+    Retrieve a password secret from Barbican.
+    Ensures the secret exists, is not expired (if expiration is set), and has a payload.
+    """
+    try:
+        if secret_name is None:
+            secret_name = project_id + '_vthunder_password'
+        secrets = barbican_client.secrets.list(name=secret_name)
+        if not secrets:
+            LOG.error("No secret found with name: '%s'", secret_name)
+            return None
+
+        secret_ref = secrets[0].secret_ref
+        secret = barbican_client.secrets.get(secret_ref)
+
+        if secret.expiration:
+            try:
+                # Parse expiration (ISO 8601 format: "YYYY-MM-DDTHH:MM:SS")
+                expiration_dt = datetime.strptime(secret.expiration, "%Y-%m-%dT%H:%M:%S")
+                if expiration_dt < datetime.utcnow():
+                    LOG.error("Secret '%s' is expired (expired at %s)", secret_name, secret.expiration)
+                    return None
+            except ValueError as ve:
+                LOG.warning("Secret '%s' has invalid expiration format: %s", secret_name, secret.expiration)
+        else:
+            LOG.debug("Secret '%s' has no expiration; assuming it's valid", secret_name)
+
+        payload = secret.payload
+        if not payload:
+            LOG.error("Secret '%s' exists but has no payload", secret_name)
+            return None
+        return payload
+
+    except Exception as e:
+        LOG.exception("Failed to retrieve secret '%s': %s", secret_name, str(e))
+        return None
+
+def decode_base64(encoded_str):
+    try:
+        return base64.b64decode(encoded_str).decode('utf-8')
+    except (binascii.Error, UnicodeDecodeError):
+        return encoded_str
 
 def get_password(barbican_client, secret_name='vthunder_password'):
     """
@@ -76,6 +120,8 @@ def decode_base64(encoded_str):
 def get_cert_data(barbican_client, listener):
     cert_data = Certificate()
     cert_ref = listener.get(constants.TLS_CERTIFICATE_ID)
+    LOG.info("Cert ID: %s", cert_ref)
+
     try:
         cert_container = barbican_client.containers.get(container_ref=cert_ref)
         cert_data = Certificate(
@@ -220,7 +266,15 @@ def attribute_search(lb_resource, attr_name):
 
     :return: Returns the requested attribute value or none
     """
-    if hasattr(lb_resource, attr_name):
+    if isinstance(lb_resource, dict):
+        if attr_name in lb_resource:
+            return lb_resource[attr_name]
+        # Check common nested keys
+        for key in ('pool', 'listener', 'load_balancer'):
+            if key in lb_resource:
+                return attribute_search(lb_resource[key], attr_name)
+
+    elif hasattr(lb_resource, attr_name):
         return getattr(lb_resource, attr_name)
     elif hasattr(lb_resource, 'pool'):
         return attribute_search(lb_resource.pool, attr_name)
@@ -312,3 +366,4 @@ def acos_version_cmp(ver1, ver2):
         if vtup1[index] != vtup2[index]:
             return vtup1[index] - vtup2[index]
     return 0
+

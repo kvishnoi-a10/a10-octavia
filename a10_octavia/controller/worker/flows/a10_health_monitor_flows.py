@@ -57,7 +57,7 @@ class HealthMonitorFlows(object):
                     constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR))
         create_hm_flow.add(health_monitor_tasks.CreateAndAssociateHealthMonitor(
-            requires=[constants.LISTENERS, constants.HEALTH_MON,constants.POOL, a10constants.VTHUNDER,
+            requires=[constants.LISTENERS, constants.HEALTH_MON, constants.POOL, a10constants.VTHUNDER,
                       constants.FLAVOR]))
         create_hm_flow.add(database_tasks.MarkHealthMonitorActiveInDB(
             requires=constants.HEALTH_MON))
@@ -80,7 +80,8 @@ class HealthMonitorFlows(object):
 
         :returns: The flow for creating a health monitor
         """
-        sf_name = constants.CREATE_HEALTH_MONITOR_FLOW + '_' + hm.get(constants.HEALTHMONITOR_ID)
+        hm_id = hm.get(constants.ID) or hm.get(constants.HEALTHMONITOR_ID)
+        sf_name = constants.CREATE_HEALTH_MONITOR_FLOW + '_' + hm_id
         create_hm_flow = linear_flow.Flow(sf_name)
         create_hm_flow.add(health_monitor_tasks.HealthMonitorToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
@@ -103,7 +104,7 @@ class HealthMonitorFlows(object):
             provides=constants.FLAVOR))
         create_hm_flow.add(health_monitor_tasks.CreateAndAssociateHealthMonitor(
             name=sf_name + a10constants.FULLY_POPULATED_CREATE_HM,
-            requires=[constants.LISTENERS, constants.HEALTH_MON,constants.POOL, a10constants.VTHUNDER,
+            requires=[constants.LISTENERS, constants.HEALTH_MON, constants.POOL, a10constants.VTHUNDER,
                       constants.FLAVOR],
             inject={constants.HEALTH_MON: hm, constants.LISTENERS: None, constants.POOL: pool}))
         create_hm_flow.add(database_tasks.MarkHealthMonitorActiveInDB(
@@ -126,6 +127,9 @@ class HealthMonitorFlows(object):
             requires=a10constants.COMPUTE_BUSY))
         delete_hm_flow.add(database_tasks.MarkHealthMonitorPendingDeleteInDB(
             requires=constants.HEALTH_MON))
+        # delete_hm_flow.add(model_tasks.
+        #                    DeleteModelObject(rebind={constants.OBJECT:
+        #                                              constants.HEALTH_MON}))
         delete_hm_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))

@@ -68,10 +68,10 @@ class L7PolicyFlows(object):
     def get_fully_populated_create_l7policy_flow(self, topology, listener, l7policy):
         """Create fully populated loadbalancer l7 policy"""
 
-        listener[constants.LISTENER_ID] = (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
+        listener[constants.LISTENER_ID] = listener.get(constants.LISTENER_ID) or listener.get(constants.ID)
         listeners = [listener]
-        l7policy['l7policy_id'] = (l7policy.get(constants.ID) or l7policy.get('l7policy_id'))
-        sf_name = constants.CREATE_L7POLICY_FLOW + '_' + l7policy.get('l7policy_id')
+        l7policy['l7policy_id'] = l7policy.get(constants.ID) or l7policy.get('l7policy_id')
+        sf_name = constants.CREATE_L7POLICY_FLOW + '_' + l7policy['l7policy_id']
         create_l7policy_flow = linear_flow.Flow(sf_name)
         create_l7policy_flow.add(l7policy_tasks.L7PolicyToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
@@ -94,7 +94,7 @@ class L7PolicyFlows(object):
 
         for l7rule in l7policy.get('l7rules'):
             create_l7policy_flow.add(self._l7rule_flows.get_fully_populated_create_l7rule_flow(
-                topology, listeners, l7rule,l7policy))
+                topology, listeners, l7rule, l7policy))
 
         create_l7policy_flow.add(database_tasks.MarkL7PolicyActiveInDB(
             name=sf_name + a10constants.FULLY_POPULATED_MARK_L7POLICY_ACTIVE,
@@ -128,7 +128,7 @@ class L7PolicyFlows(object):
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
         delete_l7policy_flow.add(l7policy_tasks.DeleteL7Policy(
-            requires=[constants.L7POLICY, a10constants.VTHUNDER,constants.LISTENERS]))
+            requires=[constants.L7POLICY, a10constants.VTHUNDER, constants.LISTENERS]))
         delete_l7policy_flow.add(database_tasks.DeleteL7PolicyInDB(
             requires=constants.L7POLICY))
         delete_l7policy_flow.add(database_tasks.MarkLBAndListenersActiveInDB(
@@ -181,7 +181,7 @@ class L7PolicyFlows(object):
             requires=a10constants.VTHUNDER))
         return update_l7policy_flow
 
-    def get_cascade_delete_l7policy_internal_flow(self, l7policy,listeners):
+    def get_cascade_delete_l7policy_internal_flow(self, l7policy, listeners):
         delete_l7policy_flow = linear_flow.Flow(constants.DELETE_L7POLICY_FLOW)
         # delete_l7policy_flow.add(model_tasks.DeleteModelObject(
         #     name='delete_model_object_' + l7policy_name,

@@ -16,6 +16,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from requests import exceptions
 from taskflow import task
+
 from octavia.common import constants
 from octavia.controller.worker.v2.tasks import lifecycle_tasks
 
@@ -51,8 +52,9 @@ class L7PolicyParent(object):
             raise e
 
         try:
+            lb_id =  listener.get(constants.LOADBALANCER_ID) or listener.get(constants.LOAD_BALANCER_ID)
             get_listener = self.axapi_client.slb.virtual_server.vport.get(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
+                lb_id, listener[constants.LISTENER_ID],
                 listener[constants.PROTOCOL], listener['protocol_port'])
             LOG.debug("Successfully fetched listener %s for l7policy %s", listener[constants.LISTENER_ID], l7policy[constants.L7POLICY_ID])
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
@@ -68,7 +70,7 @@ class L7PolicyParent(object):
 
         try:
             self.axapi_client.slb.virtual_server.vport.update(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
+                lb_id, listener[constants.LISTENER_ID],
                 listener[constants.PROTOCOL], listener['protocol_port'],
                 listener['default_pool_id'], s_pers,
                 c_pers, 1, tcp_proxy_name=tcp_proxy, **kargs)
@@ -116,7 +118,7 @@ class DeleteL7Policy(task.Task):
     """Task to delete L7Policy"""
 
     @axapi_client_decorator
-    def execute(self, l7policy, listeners,vthunder):
+    def execute(self, l7policy, listeners, vthunder):
         if self.axapi_client and self.axapi_client.slb:
             listener = listeners[0]
             c_pers, s_pers = utils.get_sess_pers_templates(
@@ -129,7 +131,7 @@ class DeleteL7Policy(task.Task):
                     self.axapi_client, listener[constants.PROTOCOL])
             try:
                 get_listener = self.axapi_client.slb.virtual_server.vport.get(
-                    (listener.get(constants.LOADBALANCER_ID)or listener.get(constants.LOAD_BALANCER_ID)),
+                    (listener.get(constants.LOADBALANCER_ID) or listener.get(constants.LOAD_BALANCER_ID)),
                     listener[constants.LISTENER_ID],
                     listener[constants.PROTOCOL], listener['protocol_port'])
                 if get_listener and 'port' in get_listener and 'pool' in get_listener['port']:

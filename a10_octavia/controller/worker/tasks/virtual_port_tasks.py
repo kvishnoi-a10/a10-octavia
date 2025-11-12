@@ -38,7 +38,6 @@ class ListenersParent(object):
         listener[constants.LOADBALANCER] = loadbalancer
         listener[constants.PROTOCOL] = openstack_mappings.virtual_port_protocol(
             self.axapi_client, listener[constants.PROTOCOL]).lower()
-
         config_data = {
             'ipinip': CONF.listener.ipinip,
             'use_rcv_hop': CONF.listener.use_rcv_hop_for_resp,

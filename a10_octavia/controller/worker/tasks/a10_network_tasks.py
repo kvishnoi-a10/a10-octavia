@@ -25,6 +25,7 @@ from taskflow import task
 from taskflow.types import failure
 
 from octavia.common import constants
+from octavia.common import data_models as o_data_models
 from octavia.controller.worker import task_utils
 from octavia.db import api as db_apis
 from octavia.network import base
@@ -37,6 +38,7 @@ from a10_octavia.common import utils as a10_utils
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator
 from a10_octavia.controller.worker.tasks import utils as a10_task_utils
 from a10_octavia.db import repositories as a10_repo
+from octavia.db import repositories as repo
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -50,6 +52,8 @@ class BaseNetworkTask(task.Task):
         self._network_driver = None
         self.task_utils = task_utils.TaskUtils()
         self.vthunder_repo = a10_repo.VThunderRepository()
+        self.amphora_repo = repo.AmphoraRepository()
+        self.loadbalancer_repo = repo.LoadBalancerRepository()
 
     @property
     def network_driver(self):
@@ -62,19 +66,17 @@ class CalculateAmphoraDelta(BaseNetworkTask):
 
     default_provides = constants.DELTA
 
-    def execute(self, loadbalancers_list, amphora, member_list):
+    def execute(self, loadbalancer, loadbalancers_list, amphora, member_list):
         LOG.debug("Calculating network delta for amphora id: %s", amphora.get(constants.ID))
         # Figure out what networks we want
         # seed with lb network(s)
 
         #desired_network_ids = set(CONF.a10_controller_worker.amp_boot_network_list[:])
         management_nets = set(CONF.a10_controller_worker.amp_boot_network_list[:])
-        member_networks = []
         session = db_apis.get_session()
         with session.begin():
-            db_lb = self.loadbalancer_repo.get(
-                session, id=loadbalancer[constants.LOADBALANCER_ID])
-
+                db_lb = self.loadbalancer_repo.get(
+                    session, id=loadbalancer[constants.LOADBALANCER_ID])
         desired_subnet_to_net_map = {
             loadbalancer[constants.VIP_SUBNET_ID]:
             loadbalancer[constants.VIP_NETWORK_ID]
@@ -82,10 +84,10 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         for loadbalancer in loadbalancers_list:
             for pool in db_lb.pools:
                 for member in pool.members:
-                    if member[constants.SUBNET_ID] and member in member_list:
+                    if member.subnet_id and member in member_list:
                         member_network = self.network_driver.get_subnet(
-                            member[constants.SUBNET_ID]).network_id
-                        desired_subnet_to_net_map[member[constants.SUBNET_ID]] = (
+                            member.subnet_id).network_id
+                        desired_subnet_to_net_map[member.subnet_id] = (
                             member_network)
                     else:
                         LOG.warning("Subnet id argument was not specified during "
@@ -96,12 +98,12 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         desired_network_ids = set(desired_subnet_to_net_map.values())
         desired_subnet_ids = set(desired_subnet_to_net_map)
 
-        loadbalancer_networks = [
-            self.network_driver.get_subnet(loadbalancer['vip_subnet_id']).network_id
-            for loadbalancer in loadbalancers_list
-            if loadbalancer['vip_subnet_id']
-        ]
-        desired_network_ids.update(loadbalancer_networks)
+        # loadbalancer_networks = [
+        #     self.network_driver.get_subnet(loadbalancer['vip_subnet_id']).network_id
+        #     for loadbalancer in loadbalancers_list
+        #     if loadbalancer['vip_subnet_id']
+        # ]
+        # desired_network_ids.update(loadbalancer_networks)
         LOG.debug("[NetIF] desired_network_ids.update{0}".format(desired_network_ids))
 
         #nics = self.network_driver.get_plugged_networks(amphora.compute_id)
@@ -201,7 +203,6 @@ class CalculateDelta(BaseNetworkTask):
         :returns: dict of octavia.network.data_models.Delta keyed off amphora
                   id
         """
-
         calculate_amp = CalculateAmphoraDelta()
         deltas = {}
         session = db_apis.get_session()
@@ -212,7 +213,7 @@ class CalculateDelta(BaseNetworkTask):
             lambda amp: amp.status == constants.AMPHORA_ALLOCATED,
                 db_lb.amphorae):
 
-            delta = calculate_amp.execute(loadbalancers_list, amphora.to_dict(), member_list)
+            delta = calculate_amp.execute(loadbalancer, loadbalancers_list, amphora.to_dict(), member_list)
             deltas[amphora.id] = delta
         return deltas
 
@@ -501,7 +502,7 @@ class HandleNetworkDeltas(BaseNetworkTask):
     networks based on delta
     """
 
-    def execute(self, deltas):
+    def execute(self, deltas, loadbalancer):
         """Handle network plugging based off deltas."""
         # added_ports = {}
         # for amp_id, delta in six.iteritems(deltas):
@@ -573,26 +574,25 @@ class HandleNetworkDeltas(BaseNetworkTask):
                     LOG.exception("Unable to delete port %s", port_id)
 
 
-# class PlugVIP(BaseNetworkTask):
-#     """Task to plumb a VIP."""
-
+#class PlugVIP(BaseNetworkTask):
+#    """Task to plumb a VIP."""
+#
 #     def execute(self, loadbalancer):
 #         """Plumb a vip to an amphora."""
-
+# 
 #         LOG.debug("Plumbing VIP for loadbalancer id: %s", loadbalancer.id)
-
 #         amps_data = self.network_driver.plug_vip(loadbalancer,
 #                                                  loadbalancer.vip)
 #         return amps_data
-
+# 
 #     def revert(self, result, loadbalancer, *args, **kwargs):
 #         """Handle a failure to plumb a vip."""
-
+# 
 #         if isinstance(result, failure.Failure):
 #             return
 #         LOG.warning("Unable to plug VIP for loadbalancer id %s",
 #                     loadbalancer.id)
-
+# 
 #         try:
 #             # Make sure we have the current port IDs for cleanup
 #             for amp_data in result:
@@ -602,12 +602,12 @@ class HandleNetworkDeltas(BaseNetworkTask):
 #                         loadbalancer.amphorae):
 #                     amphora.vrrp_port_id = amp_data.vrrp_port_id
 #                     amphora.ha_port_id = amp_data.ha_port_id
-
+# 
 #             self.network_driver.unplug_vip_revert(loadbalancer, loadbalancer.vip)
 #         except Exception as e:
 #             LOG.error("Failed to unplug VIP.  Resources may still "
 #                       "be in use from vip: %(vip)s due to error: %(except)s",
-#                       {'vip': loadbalancer[VIP_ADDRESS], 'except': e})
+#                       {'vip': loadbalancer.vip.ip_address, 'except': e})
 
 
 class UpdateVIPSecurityGroup(BaseNetworkTask):
@@ -660,18 +660,22 @@ class PlugVIPAmphora(BaseNetworkTask):
         # amp_data = self.network_driver.plug_aap_port(
         #     loadbalancer, loadbalancer.vip, amphora, subnet)
         # return amp_data
-        LOG.debug("Plumbing VIP for amphora id: %s",
-                  amphora.get(constants.ID))
+        amps_data = []
         session = db_apis.get_session()
         with session.begin():
-            db_amp = self.amphora_repo.get(session,
-                                           id=amphora.get(constants.ID))
-            db_subnet = self.network_driver.get_subnet(subnet[constants.ID])
-            db_lb = self.loadbalancer_repo.get(
-                session, id=loadbalancer[constants.LOADBALANCER_ID])
-        amp_data = self.network_driver.plug_aap_port(
-            db_lb, db_lb.vip, db_amp, db_subnet)
-        return amp_data.to_dict()
+            for amphora in filter(
+                lambda amp: amp[constants.STATUS] == constants.AMPHORA_ALLOCATED,
+                    amphora):
+                LOG.debug("Plumbing VIP for amphora id: %s",
+                  amphora[constants.ID])
+                db_amp = self.amphora_repo.get(session,
+                                            id=amphora[constants.ID])
+                db_subnet = self.network_driver.get_subnet(subnet.id)
+                db_lb = self.loadbalancer_repo.get(
+                    session, id=loadbalancer[constants.LOADBALANCER_ID])
+                amps_data.append(self.network_driver.plug_aap_port(
+                    db_lb, db_lb.vip, db_amp, db_subnet).to_dict())
+        return amps_data
 
     def revert(self, result, loadbalancer, amphora, subnet, *args, **kwargs):
         """Handle a failure to plumb a vip."""
@@ -681,7 +685,7 @@ class PlugVIPAmphora(BaseNetworkTask):
         lb_id = loadbalancer[constants.LOADBALANCER_ID]
         LOG.warning("Unable to plug VIP for amphora id %s "
                     "load balancer id %s",
-                    amphora.get(constants.ID), lb_id)
+                    amphora[0].get(constants.ID), lb_id)
 
         # try:
         #     amphora.vrrp_port_id = result.vrrp_port_id
@@ -736,13 +740,13 @@ class AllocateVIP(BaseNetworkTask):
     """Task to allocate a VIP."""
 
     def execute(self, loadbalancer, lb_count_subnet):
-        """Allocate a vip to the loadbalancer."""
 
+        """Allocate a vip to the loadbalancer."""
         # LOG.debug("Allocate_vip port_id %s, subnet_id %s,"
         #           "ip_address %s",
         #           loadbalancer.vip.port_id,
         #           loadbalancer.vip.subnet_id,
-        #           loadbalancer[VIP_ADDRESS])
+        #           loadbalancer.vip.ip_address)
         # return self.network_driver.allocate_vip(loadbalancer)
         LOG.debug("Allocating vip with port id %s, subnet id %s, "
                   "ip address %s for load balancer %s",
@@ -761,13 +765,11 @@ class AllocateVIP(BaseNetworkTask):
                  loadbalancer[constants.VIP_SUBNET_ID],
                  loadbalancer[constants.VIP_ADDRESS],
                  loadbalancer[constants.LOADBALANCER_ID])
-        for add_vip in additional_vips:
-            LOG.debug('Allocated an additional VIP: subnet=%(subnet)s '
-                      'ip_address=%(ip)s', {'subnet': add_vip.subnet_id,
-                                            'ip': add_vip.ip_address})
-        return (vip.to_dict(),
-                [additional_vip.to_dict()
-                 for additional_vip in additional_vips])
+        # for add_vip in additional_vips:
+        #     LOG.debug('Allocated an additional VIP: subnet=%(subnet)s '
+        #               'ip_address=%(ip)s', {'subnet': add_vip.subnet_id,
+        #                                     'ip': add_vip.ip_address})
+        return vip.to_dict()
 
     def revert(self, result, loadbalancer, lb_count_subnet, *args, **kwargs):
         """Handle a failure to allocate vip."""
@@ -776,8 +778,7 @@ class AllocateVIP(BaseNetworkTask):
             LOG.exception("Unable to allocate VIP")
             return
         vip = result
-        vip, additional_vips = result
-        vip = data_models.Vip(**vip)
+        vip = o_data_models.Vip(**vip)
         LOG.warning("Deallocating vip %s", vip.ip_address)
         try:
             self.network_driver.deallocate_vip(vip, lb_count_subnet)
@@ -792,6 +793,7 @@ class DeallocateVIP(BaseNetworkTask):
 
     def execute(self, loadbalancer, lb_count_subnet):
         """Deallocate a VIP."""
+        LOG.debug("Deallocating a VIP %s", loadbalancer[constants.VIP_ADDRESS])
         try:
             session = db_apis.get_session()
             with session.begin():
@@ -807,11 +809,11 @@ class DeallocateVIP(BaseNetworkTask):
 class UpdateVIP(BaseNetworkTask):
     """Task to update a VIP."""
 
-    def execute(self, listeners):
+    def execute(self, loadbalancer):
         session = db_apis.get_session()
         with session.begin():
             loadbalancer = self.loadbalancer_repo.get(
-                session, id=listeners[0][constants.LOADBALANCER_ID])
+                session, id=loadbalancer[constants.LOADBALANCER_ID])
         LOG.debug("Updating VIP of load_balancer %s.", loadbalancer.id)
         self.network_driver.update_vip(loadbalancer)
 
@@ -1064,7 +1066,7 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
         super(HandleVRIDFloatingIP, self).__init__(*arg, **kwargs)
 
     def _add_vrid_to_list(self, vrid_list, subnet, owner):
-        LOG.debug("Creating new VRID entry for subnet_id: %s", subnet_id)
+        LOG.debug("Creating new VRID entry for subnet_id: %s", subnet.id)
         vrid_value = CONF.a10_global.vrid
         subnet_ids = set([s.id for s in subnet]) if isinstance(subnet, list) else [subnet.id]
         for subnet_id in subnet_ids:
@@ -1157,7 +1159,6 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
                 raise Exception("PROJECT_ID not found in lb_resource")
             conf_floating_ip = a10_utils.get_vrid_floating_ip_for_project(project_id)
 
-
         if not conf_floating_ip:
             for vrid in updated_vrid_list:
                 self._delete_vrid_port(vrid.vrid_port_id)
@@ -1241,7 +1242,6 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
     def revert(self, result, vthunder, lb_resource, vrid_list, subnet, *args, **kwargs):
         lb_id = lb_resource.get('id') if isinstance(lb_resource, dict) else getattr(lb_resource, 'id', 'unknown')
         LOG.warning("Reverting VRRP floating IP delta task for lb_resource %s", lb_id)
-
         # Delete newly added ports
         for port in self.added_fip_ports:
             try:
@@ -1409,6 +1409,15 @@ class GetLBResourceSubnet(BaseNetworkTask):
     "Provides subnet ID for LB resource"
 
     def execute(self, lb_resource):
+        #if not hasattr(lb_resource, 'vip_subnet_id'):
+        # if not lb_resource[constants.VIP_SUBNET_ID]:
+            # Special case for load balancers as their vips have the subnet
+            # info
+        #     subnet = self.network_driver.get_subnet(lb_resource[constants.VIP_NETWORK_ID])
+        # elif lb_resource[constants.VIP_SUBNET_ID]:
+        #     subnet = self.network_driver.get_subnet(lb_resource[constants.VIP_SUBNET_ID])
+        # else:
+        #     return
         if constants.SUBNET_ID not in lb_resource:
             # Special case for load balancers as their vips have the subnet info
             vip_subnet_id = lb_resource.get(constants.VIP_SUBNET_ID) or (lb_resource.get(constants.VIP) or {}).get(constants.SUBNET_ID)
@@ -1593,3 +1602,4 @@ class ValidateSubnet(BaseNetworkTask):
                     member_subnet.cidr):
                 raise exceptions.IPAddressNotInSubnetRangeError(
                     member.get('address'), member_subnet.cidr)
+

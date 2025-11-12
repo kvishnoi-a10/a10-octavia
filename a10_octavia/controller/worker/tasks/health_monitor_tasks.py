@@ -18,10 +18,11 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from requests.exceptions import ConnectionError
 from taskflow import task
-from octavia.common import constants 
+
+from octavia.common import constants
 from octavia.common import exceptions
 from octavia.controller.worker.v2.tasks import lifecycle_tasks
- 
+
 from a10_octavia.common import a10constants
 from a10_octavia.common import openstack_mappings
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator
@@ -41,13 +42,12 @@ def _get_hm_name(axapi_client, health_mon):
             # Backwards compatability with a10-neutron-lbaas
             hm = axapi_client.slb.hm.get(hm_id[0:28])
         return hm['monitor']['name']
- 
- 
+
 class CreateAndAssociateHealthMonitor(task.Task):
     """Task to create a healthmonitor and associate it with provided pool."""
 
     @axapi_client_decorator
-    def execute(self, listeners, health_mon,pool, vthunder, flavor=None):
+    def execute(self, listeners, health_mon, pool, vthunder, flavor=None):
         hm_id = health_mon.get(constants.HEALTHMONITOR_ID) or health_mon.get(constants.HEALTH_MONITOR_ID) or health_mon.get(constants.ID)
         LOG.debug("health monitor ID: %s", hm_id)
         method = None
@@ -105,6 +105,8 @@ class CreateAndAssociateHealthMonitor(task.Task):
             LOG.exception("Failed to create health monitor: %s", hm_id)
             raise e
 
+        # pool = getattr(health_mon, "pool", None) or health_mon.get(constants.POOL, None)
+        # if health_mon.get(constants.POOL_ID) and pool and pool.get(constants.MEMBERS):
         if health_mon.get(constants.POOL_ID) is not None and pool.get(constants.MEMBERS) is not None:
             for member in pool.get(constants.MEMBERS):
                 try:
@@ -133,6 +135,7 @@ class CreateAndAssociateHealthMonitor(task.Task):
                 "Failed to revert creation of health monitor: %s due to %s",
                 hm_id, str(e))
  
+
 class DeleteHealthMonitor(task.Task):
     """Task to disassociate Health Monitor from pool and delete"""
 
@@ -149,8 +152,8 @@ class DeleteHealthMonitor(task.Task):
             except (acos_errors.ACOSException, ConnectionError) as e:
                 LOG.exception("Failed to delete health monitor: %s", hm_id)
                 raise e
- 
- 
+
+
 class UpdateHealthMonitor(task.Task):
     """Task to update Health Monitor"""
  

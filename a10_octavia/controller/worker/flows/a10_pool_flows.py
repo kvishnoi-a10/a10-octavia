@@ -97,7 +97,6 @@ class PoolFlows(object):
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
             requires=constants.POOL,
             inject={constants.POOL: pool}))
-        
 
         create_pool_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             name=sf_name + a10constants.GET_VTHUNDER_BY_LB,
@@ -138,9 +137,11 @@ class PoolFlows(object):
             else:
                 create_pool_flow.add(self.member_flow.get_rack_fully_populated_create_member_flow(
                     vthunder_conf, device_dict, member))
+        
         hm=provider_utils.hm_dict_to_provider_dict(pool.get('health_monitor'))
         create_pool_flow.add(self.hm_flow.get_fully_populated_create_health_monitor_flow(
-            topology, hm,pool))
+            topology, hm, pool))
+
         return create_pool_flow
 
     def get_delete_pool_flow(self, members, health_mon, store, topology):
@@ -199,12 +200,12 @@ class PoolFlows(object):
                       a10constants.MEMBER_LIST),
             provides=constants.DELTAS))
         delete_pool_flow.add(a10_network_tasks.HandleNetworkDeltas(
-            requires=constants.DELTAS, provides=constants.ADDED_PORTS))
+            requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
         delete_pool_flow.add(
             vthunder_tasks.AmphoraePostNetworkUnplug(
                 requires=(
                     constants.LOADBALANCER,
-                    constants.ADDED_PORTS,
+                    constants.UPDATED_PORTS,
                     a10constants.VTHUNDER)))
         delete_pool_flow.add(database_tasks.GetAmphoraeFromLoadbalancer(
             requires=constants.LOADBALANCER_ID,
@@ -230,21 +231,31 @@ class PoolFlows(object):
                 delete_hm_vthunder_subflow.add(
                     self.hm_flow.get_delete_health_monitor_vthunder_subflow(health_mon))
             else:
+                health_mon = health_mon.to_dict(recurse=True)
                 delete_hm_vthunder_subflow.add(
-                    self.hm_flow.get_delete_health_monitor_vthunder_subflow())
+                    self.hm_flow.get_delete_health_monitor_vthunder_subflow(health_mon))
         return delete_hm_vthunder_subflow
 
-    def _get_delete_member_vthunder_subflow(self, members, store, pool=constants.POOL):
+    def _get_delete_member_vthunder_subflow(self, members, store, pool=None):
+        if pool is None:
+            pool = store.get(constants.POOL)
         delete_member_vthunder_subflow = linear_flow.Flow(
             a10constants.DELETE_MEMBERS_SUBFLOW_WITH_POOL_DELETE_FLOW)
         member_store = {}
-        for member in members:
-            member_store[member.get(constants.ID)] = member
+        members_dicts = []
+        for member in members or []:
+            if hasattr(member, "to_dict"):
+                member_dict = member.to_dict(recurse=True)
+            elif isinstance(member, dict):
+                member_dict = member
+            members_dicts.append(member_dict)
+        for member in members_dicts:
+            member_store[member.get(constants.ID) or member.get(constants.MEMBER_ID)] = member
             delete_member_vthunder_subflow.add(
                 self.member_flow.get_delete_member_vthunder_internal_subflow(member, pool))
-        if members and CONF.a10_global.handle_vrid:
+        if members_dicts and CONF.a10_global.handle_vrid:
             delete_member_vthunder_subflow.add(
-                self.member_flow.get_delete_member_vrid_internal_subflow(pool, members))
+                self.member_flow.get_delete_member_vrid_internal_subflow(pool, members_dicts))
         store.update(member_store)
         return delete_member_vthunder_subflow
 

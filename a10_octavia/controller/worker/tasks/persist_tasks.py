@@ -88,7 +88,6 @@ class HandleSessionPersistenceDelta(task.Task):
                             pool_id, str(e))
 
 
-
 class DeleteSessionPersistence(task.Task):
     """Task to delete session persistence templates"""
 

@@ -69,55 +69,59 @@ class MemberCreate(task.Task):
             health_check = pool.get(constants.HEALTH_MONITOR_ID)
 
         try:
+            ip = member.get(constants.ADDRESS) or member.get(constants.IP_ADDRESS)
+            id = member.get(constants.ID) or member.get(constants.MEMBER_ID)
             try:
                 server_name = utils.get_member_server_name(self.axapi_client, member)
-                self.axapi_client.slb.server.update(server_name, member[constants.ADDRESS], status=status,
+                self.axapi_client.slb.server.update(server_name, ip, status=status,
                                                     health_check=health_check,
                                                     server_templates=server_temp,
                                                     **server_args)
-                LOG.debug("Successfully created member: %s", member[constants.MEMBER_ID])
+                LOG.debug("Successfully created member: %s", id)
             except acos_errors.NotFound:
                 if CONF.a10_global.nlbaas_member_names:
                     server_name = '_{}_{}_neutron'.format(
                         member[constants.PROJECT_ID][:5],
-                        member[constants.ADDRESS].replace('.', '_'))
+                        ip.replace('.', '_'))
                 else:
                     server_name = '{}_{}'.format(
                         member[constants.PROJECT_ID][:5],
-                        member[constants.ADDRESS].replace('.', '_'))
-                self.axapi_client.slb.server.create(server_name, member[constants.ADDRESS], status=status,
+                        ip.replace('.', '_'))
+                self.axapi_client.slb.server.create(server_name, ip, status=status,
                                                     health_check=health_check,
                                                     server_templates=server_temp,
                                                     **server_args)
-                LOG.debug("Successfully created member: %s", member[constants.MEMBER_ID])
+                LOG.debug("Successfully created member: %s", id)
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
-            LOG.exception("Failed to create member: %s", member[constants.MEMBER_ID])
+            LOG.exception("Failed to create member: %s", id)
             raise e
 
         try:
             self.axapi_client.slb.service_group.member.create(
                 (pool.get(constants.ID)or pool.get(constants.POOL_ID)), server_name, member['protocol_port'])
             LOG.debug("Successfully associated member %s to pool %s",
-                      member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
+                      id, (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
             LOG.exception("Failed to associate member %s to pool %s",
-                          member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
+                          id, (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
             raise e
 
     @axapi_client_decorator_for_revert
     def revert(self, member, vthunder, pool, member_count_ip, *args, **kwargs):
+        ip = member.get(constants.ADDRESS) or member.get(constants.IP_ADDRESS)
+        id = member.get(constants.ID) or member.get(constants.MEMBER_ID)
         if member_count_ip > 1:
             return
-        server_name = '{}_{}'.format(member[constants.PROJECT_ID][:5], member[constants.ADDRESS].replace('.', '_'))
+        server_name = '{}_{}'.format(member[constants.PROJECT_ID][:5], ip.replace('.', '_'))
         try:
             LOG.warning("Reverting creation of member: %s for pool: %s",
-                        member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
+                        id, (pool.get(constants.ID)or pool.get(constants.POOL_ID)))
             self.axapi_client.slb.server.delete(server_name)
         except exceptions.ConnectionError:
             LOG.exception("Failed to connect A10 Thunder device: %s", vthunder.ip_address)
         except Exception as e:
             LOG.exception("Failed to revert creation of member %s for pool %s due to %s",
-                          member[constants.MEMBER_ID], (pool.get(constants.ID)or pool.get(constants.POOL_ID)), str(e))
+                          id, (pool.get(constants.ID)or pool.get(constants.POOL_ID)), str(e))
 
 
 class MemberDelete(task.Task):
@@ -187,7 +191,7 @@ class MemberUpdate(task.Task):
 
         health_check = None
         if pool.get(constants.HEALTH_MONITOR):
-            health_check = pool.get(constants.HEALTH_MONITOR_ID)
+            health_check = pool.get(constants.HEALTH_MONITOR)
 
         try:
             server_name = utils.get_member_server_name(self.axapi_client, member)
@@ -211,7 +215,6 @@ class MemberDeletePool(task.Task):
     @axapi_client_decorator
     def execute(self, member, vthunder, pool, pool_count_ip, member_count_ip_port_protocol):
         try:
-            LOG.debug("Inside sever_task: %s", member)
             if self.axapi_client and self.axapi_client.slb:
                 server_name = utils.get_member_server_name(self.axapi_client, member)
                 if pool_count_ip <= 1:

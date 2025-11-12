@@ -11,7 +11,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
 from octavia.common import constants
 
 TYPE_DICT = {
@@ -51,7 +50,7 @@ class PolicyUtil(object):
         else:
             actionString = "HTTP::close"
         ruleString = ""
-        l7rules = l7policy.get("l7rules", [])
+        l7rules = (l7policy.get("l7rules", []) or l7policy.get("rules", []))
         if len(l7rules) <= 0:
             ruleString = "( true )"
         else:

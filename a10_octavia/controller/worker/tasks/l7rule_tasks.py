@@ -16,6 +16,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from requests import exceptions
 from taskflow import task
+
 from octavia.common import constants
 from octavia.controller.worker.v2.tasks import lifecycle_tasks
 
@@ -50,8 +51,9 @@ class L7RuleParent(object):
             raise e
 
         try:
+            lb_id =  listener.get(constants.LOADBALANCER_ID) or listener.get(constants.LOAD_BALANCER_ID)
             get_listener = self.axapi_client.slb.virtual_server.vport.get(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
+                lb_id, listener[constants.LISTENER_ID],
                 listener[constants.PROTOCOL], listener['protocol_port'])
             LOG.debug("Successfully fetched listener %s for l7rule %s", listener[constants.LISTENER_ID], l7rule[constants.L7RULE_ID])
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
@@ -67,9 +69,9 @@ class L7RuleParent(object):
 
         try:
             self.axapi_client.slb.virtual_server.vport.update(
-                listener[constants.LOADBALANCER_ID], listener[constants.LISTENER_ID],
+                lb_id, listener[constants.LISTENER_ID],
                 listener[constants.PROTOCOL], listener['protocol_port'],
-                listener.get('default_pool_id'), s_pers,
+                listener['default_pool_id'], s_pers,
                 c_pers, 1, tcp_proxy_name=tcp_proxy, **kargs)
             LOG.debug("Successfully associated l7rule %s to listener %s", l7rule[constants.L7RULE_ID], listener[constants.LISTENER_ID])
         except (acos_errors.ACOSException, exceptions.ConnectionError) as e:
@@ -82,7 +84,7 @@ class CreateL7Rule(L7RuleParent, task.Task):
 
     @axapi_client_decorator
     def execute(self, l7rule, l7policy, listeners, vthunder):
-        self.set(l7rule,l7policy, listeners)
+        self.set(l7rule, l7policy, listeners)
 
 
 class UpdateL7Rule(L7RuleParent, task.Task):
@@ -91,25 +93,42 @@ class UpdateL7Rule(L7RuleParent, task.Task):
     @axapi_client_decorator
     def execute(self, l7rule, l7policy, listeners, vthunder, update_dict):
         l7rule.update(update_dict)
-        self.set(l7rule,l7policy,listeners)
+        for rule in l7policy.get('rules', []):
+            if rule['l7rule_id'] == l7rule['l7rule_id']:
+                rule.update(update_dict)
+                break
+        self.set(l7rule, l7policy, listeners)
 
 
 class DeleteL7Rule(task.Task):
     """Task to delete a L7rule and disassociate from provided pool"""
 
     @axapi_client_decorator
-    def execute(self, l7rule,l7policy, listeners, vthunder):
+    def execute(self, l7rule, l7policy, listeners, vthunder):
         if self.axapi_client and self.axapi_client.slb:
             # Use l7policy from method argument
-            rules = l7policy.get(constants.L7RULES, [])
+            rules = (l7policy.get(constants.L7RULES, []) or l7policy.get(constants.RULES, []))
+
+            rules_dict = []
+            for rule in rules:
+                if hasattr(rule, "to_dict"):
+                    rule_dict = rule.to_dict(recurse=True)
+                elif isinstance(rule, dict):
+                    rule_dict = rule
+                rules_dict.append(rule_dict)
 
             # Safely remove the rule if it exists
-            for index, rule in enumerate(rules):
-                if hasattr(rule, "id") and rule.id == l7rule[constants.L7RULE_ID]:
-                    del rules[index]
+            #if (hasattr(rule, "id") or rule.id == l7rule[constants.L7RULE_ID]) or (hasattr(rule, "l7rule_id") or rule[constants.L7RULE_ID] == l7rule[constants.L7RULE_ID]):
+            for index, rule in enumerate(rules_dict):
+                if rule.get(constants.ID) == l7rule.get(constants.L7RULE_ID) or rule.get(constants.L7RULE_ID) == l7rule.get(constants.L7RULE_ID):
+                    del rules_dict[index]
                     break
 
-            l7policy[constants.L7RULES] = rules
+            if constants.RULES in l7policy:
+                l7policy[constants.RULES] = rules_dict
+            elif constants.L7RULES in l7policy:
+                l7policy[constants.L7RULES] = rules_dict
+
             filename = l7policy[constants.L7POLICY_ID]
             p = PolicyUtil()
             script = p.createPolicy(l7policy)

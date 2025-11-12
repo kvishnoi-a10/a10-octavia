@@ -21,6 +21,9 @@ from octavia.controller.worker.v2.tasks import database_tasks
 from octavia.controller.worker.v2.tasks import lifecycle_tasks
 from octavia.controller.worker.v2.tasks import network_tasks
 
+from oslo_log import log as logging
+LOG = logging.getLogger(__name__)
+
 from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.flows import a10_l7policy_flows
 from a10_octavia.controller.worker.tasks import a10_database_tasks
@@ -38,10 +41,10 @@ class ListenerFlows(object):
 
     def get_create_listener_flow(self, topology):
         """Flow to create a listener"""
-
+        LOG.debug("listener value: %s", constants.LISTENER)
         create_listener_flow = linear_flow.Flow(constants.CREATE_LISTENER_FLOW)
         create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
-            requires=[constants.LISTENER]))
+            requires=[constants.LISTENERS]))
         create_listener_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
         create_listener_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
@@ -81,7 +84,7 @@ class ListenerFlows(object):
     def get_vthunder_fully_populated_create_listener_flow(self, topology, listener):
         """Flow to create fully populated loadbalancer listeners"""
 
-        sf_name = constants.CREATE_LISTENER_FLOW + '_' + listener[constants.LISTENER_ID]
+        sf_name = constants.CREATE_LISTENER_FLOW + '_' + listener[constants.ID]
         create_listener_flow = linear_flow.Flow(sf_name)
         create_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
@@ -118,7 +121,7 @@ class ListenerFlows(object):
             name=sf_name + a10constants.UPDATE_VIP_AFTER_ALLOCATION,
             requires=constants.LOADBALANCER))
 
-        for l7policy in listener.l7policies:
+        for l7policy in listener.get(constants.L7POLICIES):
             create_listener_flow.add(
                 self._l7policy_flows.get_fully_populated_create_l7policy_flow(
                     topology, listener, l7policy))
@@ -131,6 +134,7 @@ class ListenerFlows(object):
         return create_listener_flow
 
     def handle_ssl_cert_flow(self, flow_type='create', listener=None):
+        LOG.debug("listener value: %s", listener)
         if flow_type == 'create':
             configure_ssl = self.get_ssl_certificate_create_flow(listener)
         elif flow_type == 'update':
@@ -307,6 +311,7 @@ class ListenerFlows(object):
 
     def get_rack_fully_populated_create_listener_flow(self, topology, listener):
         """Create a flow to create listener for fully populated loadbalancer creation"""
+
         listener[constants.LISTENER_ID] = (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
         listener[constants.LOADBALANCER_ID] = listener.get('load_balancer_id')
         sf_name = constants.CREATE_LISTENER_FLOW + '_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
@@ -338,7 +343,7 @@ class ListenerFlows(object):
             requires=[constants.LOADBALANCER, constants.LISTENER,
                       a10constants.VTHUNDER, constants.FLAVOR_DATA],
             inject={constants.LISTENER: listener}))
-        
+
         for l7policy in listener.get(constants.L7POLICIES):
             create_listener_flow.add(
                 self._l7policy_flows.get_fully_populated_create_l7policy_flow(
@@ -351,6 +356,7 @@ class ListenerFlows(object):
         return create_listener_flow
 
     def get_ssl_certificate_create_flow(self, listener=None):
+        LOG.debug("listener value: %s", listener)
         suffix = 'listener'
         if listener is not None:
             suffix = 'listener_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
@@ -381,7 +387,8 @@ class ListenerFlows(object):
     def get_ssl_certificate_delete_flow(self, listener=None):
         suffix = 'listener'
         if listener is not None:
-            suffix = 'listener_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
+            listener_id = (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
+            suffix = 'listener_' + listener_id
 
         delete_ssl_cert_flow = linear_flow.Flow(
             a10constants.DELETE_SSL_CERT_FLOW)
@@ -416,7 +423,8 @@ class ListenerFlows(object):
     def get_ssl_certificate_update_flow(self, listener=None):
         suffix = 'listener'
         if listener is not None:
-            suffix = 'listener_' + listener[constants.LISTENER_ID]
+            listener_id = listener[constants.LISTENER_ID]
+            suffix = 'listener_' + listener_id
 
         update_ssl_cert_flow = linear_flow.Flow(
             a10constants.UPDATE_SSL_CERT_FLOW + suffix)
