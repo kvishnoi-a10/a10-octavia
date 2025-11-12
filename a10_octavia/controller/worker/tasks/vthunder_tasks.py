@@ -290,7 +290,7 @@ class EnableInterface(VThunderBaseTask):
         amphora_id = loadbalancer.amphorae[0].id
         lb_exists_flag = self.loadbalancer_repo.check_lb_exists_in_project(
             db_apis.get_session(),
-            loadbalancer.project_id)
+            loadbalancer[constants.PROJECT_ID])
 
         if not lb_exists_flag:
             compute_id = loadbalancer.amphorae[0].compute_id
@@ -734,22 +734,22 @@ class HandleACOSPartitionChange(VThunderBaseTask):
     """Task to switch to specified partition"""
 
     def _get_hmt_partition_name(self, loadbalancer):
-        partition_name = loadbalancer.project_id[:14]
+        partition_name = loadbalancer[constants.PROJECT_ID][:14]
         if CONF.a10_global.use_parent_partition:
-            parent_project_id = a10_utils.get_parent_project(loadbalancer.project_id)
+            parent_project_id = a10_utils.get_parent_project(loadbalancer[constants.PROJECT_ID])
             if parent_project_id:
                 if parent_project_id != 'default':
                     partition_name = parent_project_id[:14]
             else:
                 LOG.error(
                     "The parent project for project %s does not exist. ",
-                    loadbalancer.project_id)
-                raise exceptions.ParentProjectNotFound(loadbalancer.project_id)
+                    loadbalancer[constants.PROJECT_ID])
+                raise exceptions.ParentProjectNotFound(loadbalancer[constants.PROJECT_ID])
         else:
             LOG.warning(
                 "Hierarchical multitenancy is disabled, use_parent_partition "
                 "configuration will not be applied for loadbalancer: %s",
-                loadbalancer.id)
+                loadbalancer[constants.LOADBALANCER_ID])
         return partition_name
 
     def execute(self, loadbalancer, vthunder_config):
@@ -878,7 +878,7 @@ class TagInterfaceBaseTask(VThunderBaseTask):
                         self._subnet_mask, subnet_id)
             return None
 
-        self.network_driver.create_port(self._subnet.network_id, fixed_ip=ve_ip)
+        self.network_driver.create_port(self._subnet.network_id,fixed_ips=[{'subnet_id': subnet_id, 'ip_address': ve_ip}])
 
     def release_ve_ip_from_neutron(self, vlan_id, subnet_id, vthunder, device_id=None):
         ve_ip = self._get_ve_ip(vlan_id, vthunder, device_id)
@@ -1090,7 +1090,7 @@ class TagInterfaceForLB(TagInterfaceBaseTask):
     @axapi_client_decorator
     def execute(self, loadbalancer, vthunder):
         try:
-            vlan_id = self.get_vlan_id(loadbalancer.vip.subnet_id, False)
+            vlan_id = self.get_vlan_id(loadbalancer.get(constants.VIP_SUBNET_ID), False)
             self.tag_interfaces(vthunder, vlan_id)
         except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
             LOG.exception("Failed to TagInterfaceForLB: %s", str(e))
@@ -1100,12 +1100,12 @@ class TagInterfaceForLB(TagInterfaceBaseTask):
     def revert(self, loadbalancer, vthunder, *args, **kwargs):
         try:
             if vthunder and vthunder.device_network_map:
-                vlan_id = self.get_vlan_id(loadbalancer.vip.subnet_id, False)
+                vlan_id = self.get_vlan_id(loadbalancer.get(constants.VIP_SUBNET_ID), False)
                 if self.is_vlan_deletable():
                     LOG.warning("Revert TagInterfaceForLB with VLAN id %s", vlan_id)
                     master_device_id = vthunder.device_network_map[0].vcs_device_id
                     for device_obj in vthunder.device_network_map:
-                        self.delete_device_vlan(vlan_id, loadbalancer.vip.subnet_id, vthunder,
+                        self.delete_device_vlan(vlan_id, loadbalancer.get(constants.VIP_SUBNET_ID), vthunder,
                                                 device_id=device_obj.vcs_device_id,
                                                 master_device_id=master_device_id)
         except req_exceptions.ConnectionError:
@@ -1116,46 +1116,61 @@ class TagInterfaceForLB(TagInterfaceBaseTask):
 
 class TagInterfaceForMember(TagInterfaceBaseTask):
     """Task to tag Ethernet/Trunk Interface on a vThunder device from member subnet"""
-
     @axapi_client_decorator
     def execute(self, member, vthunder):
+        LOG.debug("member: %s", member)
         member_list = member if isinstance(member, list) else [member]
         subnet_list = []
         for member in member_list:
-            if member.subnet_id not in subnet_list:
-                if not member.subnet_id:
-                    LOG.warning("Subnet id argument was not specified during "
-                                "issuance of create command/API call for member %s. "
-                                "Skipping TagInterfaceForMember task", member.id)
+            subnet_id = member.get(constants.SUBNET_ID)
+            if not subnet_id:
+                LOG.warning("Subnet id missing for member %s. Skipping.",
+                            member[constants.MEMBER_ID])
+                continue
+            if subnet_id in subnet_list:
+                continue
+
+            try:
+                vlan_id = self.get_vlan_id(subnet_id, False)
+                if not vlan_id:
+                    LOG.warning("No VLAN ID found for subnet %s", subnet_id)
                     continue
-                try:
-                    vlan_id = self.get_vlan_id(member.subnet_id, False)
-                    self.tag_interfaces(vthunder, vlan_id)
-                    subnet_list.append(member.subnet_id)
-                    LOG.debug("Successfully tagged interface with VLAN id %s for member %s",
-                              str(vlan_id), member.id)
-                except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
-                    LOG.exception("Failed to tag interface with VLAN id %s for member %s",
-                                  str(vlan_id), member.id)
-                    raise e
+
+                vlan_subnet_id_dict = {str(vlan_id): subnet_id}
+                master_device_id = vthunder.device_network_map[0].vcs_device_id
+
+                for device_obj in vthunder.device_network_map:
+                    self.tag_device_interfaces(vlan_id, vlan_subnet_id_dict, device_obj,
+                                               vthunder,
+                                               device_id=device_obj.vcs_device_id,
+                                               master_device_id=master_device_id)
+
+                subnet_list.append(subnet_id)
+                LOG.debug("Successfully tagged VLAN %s for member %s",
+                          vlan_id, member[constants.MEMBER_ID])
+
+            except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
+                LOG.exception("Failed to tag VLAN %s for member %s",
+                              str(vlan_id), member[constants.MEMBER_ID])
+                raise e
 
     @axapi_client_decorator_for_revert
     def revert(self, member, vthunder, *args, **kwargs):
         member_list = member if isinstance(member, list) else [member]
         for member in member_list:
-            if not member.subnet_id:
+            if not member[constants.SUBNET_ID]:
                 LOG.warning("Subnet id argument was not specified during "
                             "issuance of create command/API call for member %s. "
-                            "Skipping TagInterfaceForMember task", member.id)
+                            "Skipping TagInterfaceForMember task", member[constants.MEMBER_ID])
                 continue
             try:
                 if vthunder and vthunder.device_network_map:
-                    vlan_id = self.get_vlan_id(member.subnet_id, False)
+                    vlan_id = self.get_vlan_id(member[constants.SUBNET_ID], False)
                     if self.is_vlan_deletable():
                         LOG.warning("Reverting tag interface for member with VLAN id %s", vlan_id)
                         master_device_id = vthunder.device_network_map[0].vcs_device_id
                         for device_obj in vthunder.device_network_map:
-                            self.delete_device_vlan(vlan_id, member.subnet_id, vthunder,
+                            self.delete_device_vlan(vlan_id, member[constants.SUBNET_ID], vthunder,
                                                     device_id=device_obj.vcs_device_id,
                                                     master_device_id=master_device_id)
             except req_exceptions.ConnectionError:
@@ -1171,11 +1186,11 @@ class DeleteInterfaceTagIfNotInUseForLB(TagInterfaceBaseTask):
     def execute(self, loadbalancer, vthunder):
         try:
             if vthunder and vthunder.device_network_map:
-                vlan_id = self.get_vlan_id(loadbalancer.vip.subnet_id, False)
+                vlan_id = self.get_vlan_id(loadbalancer.get(constants.VIP_SUBNET_ID), False)
                 if self.is_vlan_deletable():
                     master_device_id = vthunder.device_network_map[0].vcs_device_id
                     for device_obj in vthunder.device_network_map:
-                        self.delete_device_vlan(vlan_id, loadbalancer.vip.subnet_id, vthunder,
+                        self.delete_device_vlan(vlan_id, loadbalancer.get(constants.VIP_SUBNET_ID), vthunder,
                                                 device_id=device_obj.vcs_device_id,
                                                 master_device_id=master_device_id)
         except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
@@ -1188,18 +1203,18 @@ class DeleteInterfaceTagIfNotInUseForMember(TagInterfaceBaseTask):
 
     @axapi_client_decorator
     def execute(self, member, vthunder):
-        if not member.subnet_id:
+        if not member.get(constants.SUBNET_ID):
             LOG.warning("Subnet id argument was not specified during "
                         "issuance of create command/API call for member %s. "
                         "Skipping DeleteInterfaceTagIfNotInUseForMember task", member.id)
             return
         try:
             if vthunder and vthunder.device_network_map:
-                vlan_id = self.get_vlan_id(member.subnet_id, False)
+                vlan_id = self.get_vlan_id(member.get(constants.SUBNET_ID), False)
                 if self.is_vlan_deletable():
                     master_device_id = vthunder.device_network_map[0].vcs_device_id
                     for device_obj in vthunder.device_network_map:
-                        self.delete_device_vlan(vlan_id, member.subnet_id, vthunder,
+                        self.delete_device_vlan(vlan_id, member.get(constants.SUBNET_ID), vthunder,
                                                 device_id=device_obj.vcs_device_id,
                                                 master_device_id=master_device_id)
         except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:
@@ -1328,7 +1343,7 @@ class UpdateAcosVersionInVthunderEntry(VThunderBaseTask):
         if loadbalancer is not None:
             existing_vthunder = self.vthunder_repo.get_vthunder_by_project_id(
                 db_apis.get_session(),
-                loadbalancer.project_id)
+                loadbalancer[constants.PROJECT_ID])
         if not existing_vthunder:
             try:
                 acos_version_summary = self.axapi_client.system.action.get_acos_version()
@@ -1469,7 +1484,7 @@ class GetMasterVThunder(VThunderBaseTask):
                     attempts = attempts - 1
                     vcs_summary = {}
                     vcs_summary = self.axapi_client.system.action.get_vcs_summary_oper()
-                    vcs_member_list = vcs_summary['vcs-summary']['oper']['member-list']
+                    vcs_member_list = (vcs_summary.get('vcs-summary', {}).get('oper', {}).get('member-list'))
                     for i in range(len(vcs_member_list)):
                         role = vcs_member_list[i]['state'].split('(')[0]
                         if role == "vMaster":
@@ -1517,9 +1532,9 @@ class GetVthunderConfByFlavor(VThunderBaseTask):
                 dev_key = a10constants.DEVICE_KEY_PREFIX + device_flavor
                 if dev_key in device_config_dict:
                     vthunder_config = device_config_dict[dev_key]
-                    vthunder_config.project_id = loadbalancer.project_id
+                    vthunder_config.project_id = loadbalancer[constants.PROJECT_ID]
                     if vthunder_config.hierarchical_multitenancy == "enable":
-                        vthunder_config.partition_name = loadbalancer.project_id[0:14]
+                        vthunder_config.partition_name = loadbalancer[constants.PROJECT_ID][0:14]
                     return vthunder_config, True
                 else:
                     raise exceptions.FlavorDeviceNotFound(device_flavor)

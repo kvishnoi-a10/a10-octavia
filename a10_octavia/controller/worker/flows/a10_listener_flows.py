@@ -17,9 +17,9 @@ from taskflow.patterns import graph_flow
 from taskflow.patterns import linear_flow
 
 from octavia.common import constants
-from octavia.controller.worker.v1.tasks import database_tasks
-from octavia.controller.worker.v1.tasks import lifecycle_tasks
-from octavia.controller.worker.v1.tasks import network_tasks
+from octavia.controller.worker.v2.tasks import database_tasks
+from octavia.controller.worker.v2.tasks import lifecycle_tasks
+from octavia.controller.worker.v2.tasks import network_tasks
 
 from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.flows import a10_l7policy_flows
@@ -40,7 +40,7 @@ class ListenerFlows(object):
         """Flow to create a listener"""
 
         create_listener_flow = linear_flow.Flow(constants.CREATE_LISTENER_FLOW)
-        create_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
+        create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
             requires=[constants.LISTENER]))
         create_listener_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
@@ -54,7 +54,8 @@ class ListenerFlows(object):
                 provides=a10constants.VTHUNDER))
         create_listener_flow.add(self.handle_ssl_cert_flow(flow_type='create'))
         create_listener_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LISTENER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         create_listener_flow.add(a10_network_tasks.GetLBResourceSubnet(
             rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
@@ -80,7 +81,7 @@ class ListenerFlows(object):
     def get_vthunder_fully_populated_create_listener_flow(self, topology, listener):
         """Flow to create fully populated loadbalancer listeners"""
 
-        sf_name = constants.CREATE_LISTENER_FLOW + '_' + listener.id
+        sf_name = constants.CREATE_LISTENER_FLOW + '_' + listener[constants.LISTENER_ID]
         create_listener_flow = linear_flow.Flow(sf_name)
         create_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
@@ -98,8 +99,8 @@ class ListenerFlows(object):
         create_listener_flow.add(self.handle_ssl_cert_flow(flow_type='create', listener=listener))
         create_listener_flow.add(a10_database_tasks.GetFlavorData(
             name=sf_name + a10constants.FULLY_POPULATED_GET_FLAVOR,
-            rebind={a10constants.LB_RESOURCE: constants.LISTENER},
-            inject={constants.LISTENER: listener},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         create_listener_flow.add(a10_network_tasks.GetLBResourceSubnet(
             rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
@@ -142,7 +143,7 @@ class ListenerFlows(object):
 
         if listener is not None:
             check_ssl = cert_tasks.CheckListenerType(
-                name='check_listener_type_' + listener.id,
+                name='check_listener_type_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID)),
                 requires=constants.LISTENER,
                 inject={constants.LISTENER: listener})
         else:
@@ -160,7 +161,7 @@ class ListenerFlows(object):
         """Flow to delete a listener"""
 
         delete_listener_flow = linear_flow.Flow(constants.DELETE_LISTENER_FLOW)
-        delete_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
+        delete_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
             requires=constants.LISTENER))
         delete_listener_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
@@ -176,35 +177,37 @@ class ListenerFlows(object):
         delete_listener_flow.add(virtual_port_tasks.ListenerDelete(
             requires=[constants.LOADBALANCER, constants.LISTENER, a10constants.VTHUNDER]))
         delete_listener_flow.add(network_tasks.UpdateVIPForDelete(
-            requires=constants.LOADBALANCER))
+            requires=constants.LOADBALANCER_ID))
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
             requires=constants.LISTENER))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
+            requires=constants.PROJECT_ID))
+        # delete_listener_flow.add(database_tasks.MarkLBActiveInDB(
+        #     requires=constants.LOADBALANCER))
+        delete_listener_flow.add(database_tasks.MarkLBActiveInDBByListener(
             requires=constants.LISTENER))
-        delete_listener_flow.add(database_tasks.MarkLBActiveInDB(
-            requires=constants.LOADBALANCER))
         delete_listener_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         delete_listener_flow.add(a10_database_tasks.SetThunderUpdatedAt(
             requires=a10constants.VTHUNDER))
         return delete_listener_flow
 
-    def get_cascade_delete_listener_internal_flow(self, listener, listener_name):
+    def get_cascade_delete_listener_internal_flow(self, listener):
         """Create a flow to delete a listener
            (will skip deletion on the amp and marking LB active)
         :returns: The flow for deleting a listener
         """
         delete_listener_flow = linear_flow.Flow(constants.DELETE_LISTENER_FLOW)
+        listener[constants.LISTENER_ID] = listener.get(constants.LISTENER_ID) or listener.get(constants.ID)
         delete_listener_flow.add(self.handle_ssl_cert_flow(
             flow_type='delete', listener=listener))
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
-            name='delete_listener_in_db_' + listener_name,
+            name='delete_listener_in_db_' + listener[constants.LISTENER_ID],
             requires=constants.LISTENER,
-            rebind={constants.LISTENER: listener_name}))
+            inject={constants.LISTENER: listener}))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
-            name='decrement_listener_quota_' + listener_name,
-            requires=constants.LISTENER,
-            rebind={constants.LISTENER: listener_name}))
+            name='decrement_listener_quota_' + listener[constants.LISTENER_ID],
+            requires=constants.PROJECT_ID))
         return delete_listener_flow
 
     def get_delete_rack_listener_flow(self):
@@ -222,9 +225,11 @@ class ListenerFlows(object):
         delete_listener_flow.add(database_tasks.DeleteListenerInDB(
             requires=constants.LISTENER))
         delete_listener_flow.add(database_tasks.DecrementListenerQuota(
+            requires=constants.PROJECT_ID))
+        # delete_listener_flow.add(database_tasks.MarkLBActiveInDB(
+        #     requires=constants.LOADBALANCER))
+        delete_listener_flow.add(database_tasks.MarkLBActiveInDBByListener(
             requires=constants.LISTENER))
-        delete_listener_flow.add(database_tasks.MarkLBActiveInDB(
-            requires=constants.LOADBALANCER))
         delete_listener_flow.add(vthunder_tasks.WriteMemory(
             requires=a10constants.VTHUNDER))
         delete_listener_flow.add(a10_database_tasks.SetThunderUpdatedAt(
@@ -249,7 +254,8 @@ class ListenerFlows(object):
                 provides=a10constants.VTHUNDER))
         update_listener_flow.add(self.handle_ssl_cert_flow(flow_type='update'))
         update_listener_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LISTENER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         update_listener_flow.add(virtual_port_tasks.ListenerUpdate(
             requires=[constants.LOADBALANCER, constants.LISTENER,
@@ -270,14 +276,15 @@ class ListenerFlows(object):
         """Create a flow to create a rack listener"""
 
         create_listener_flow = linear_flow.Flow(constants.CREATE_LISTENER_FLOW)
-        create_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
-            requires=[constants.LISTENER]))
+        create_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
+            requires=[constants.LISTENERS]))
         create_listener_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=constants.LOADBALANCER,
             provides=a10constants.VTHUNDER))
         create_listener_flow.add(self.handle_ssl_cert_flow(flow_type='create'))
         create_listener_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LISTENER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         create_listener_flow.add(a10_network_tasks.GetLBResourceSubnet(
             rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
@@ -300,8 +307,9 @@ class ListenerFlows(object):
 
     def get_rack_fully_populated_create_listener_flow(self, topology, listener):
         """Create a flow to create listener for fully populated loadbalancer creation"""
-
-        sf_name = constants.CREATE_LISTENER_FLOW + '_' + listener.id
+        listener[constants.LISTENER_ID] = (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
+        listener[constants.LOADBALANCER_ID] = listener.get('load_balancer_id')
+        sf_name = constants.CREATE_LISTENER_FLOW + '_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
         create_listener_flow = linear_flow.Flow(sf_name)
         create_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             name=sf_name + a10constants.FULLY_POPULATED_ERROR_ON_REVERT,
@@ -315,8 +323,8 @@ class ListenerFlows(object):
         create_listener_flow.add(self.handle_ssl_cert_flow(flow_type='create', listener=listener))
         create_listener_flow.add(a10_database_tasks.GetFlavorData(
             name=sf_name + a10constants.FULLY_POPULATED_GET_FLAVOR,
-            rebind={a10constants.LB_RESOURCE: constants.LISTENER},
-            inject={constants.LISTENER: listener},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         create_listener_flow.add(a10_network_tasks.GetLBResourceSubnet(
             rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
@@ -330,8 +338,8 @@ class ListenerFlows(object):
             requires=[constants.LOADBALANCER, constants.LISTENER,
                       a10constants.VTHUNDER, constants.FLAVOR_DATA],
             inject={constants.LISTENER: listener}))
-
-        for l7policy in listener.l7policies:
+        
+        for l7policy in listener.get(constants.L7POLICIES):
             create_listener_flow.add(
                 self._l7policy_flows.get_fully_populated_create_l7policy_flow(
                     topology, listener, l7policy))
@@ -345,7 +353,7 @@ class ListenerFlows(object):
     def get_ssl_certificate_create_flow(self, listener=None):
         suffix = 'listener'
         if listener is not None:
-            suffix = 'listener_' + listener.id
+            suffix = 'listener_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
 
         create_ssl_cert_flow = linear_flow.Flow(
             a10constants.CREATE_SSL_CERT_FLOW + suffix)
@@ -373,7 +381,7 @@ class ListenerFlows(object):
     def get_ssl_certificate_delete_flow(self, listener=None):
         suffix = 'listener'
         if listener is not None:
-            suffix = 'listener_' + listener.id
+            suffix = 'listener_' + (listener.get(constants.LISTENER_ID) or listener.get(constants.ID))
 
         delete_ssl_cert_flow = linear_flow.Flow(
             a10constants.DELETE_SSL_CERT_FLOW)
@@ -408,7 +416,7 @@ class ListenerFlows(object):
     def get_ssl_certificate_update_flow(self, listener=None):
         suffix = 'listener'
         if listener is not None:
-            suffix = 'listener_' + listener.id
+            suffix = 'listener_' + listener[constants.LISTENER_ID]
 
         update_ssl_cert_flow = linear_flow.Flow(
             a10constants.UPDATE_SSL_CERT_FLOW + suffix)
