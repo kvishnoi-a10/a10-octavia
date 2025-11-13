@@ -1153,9 +1153,9 @@ class TagInterfaceForLB(TagInterfaceBaseTask):
 
 class TagInterfaceForMember(TagInterfaceBaseTask):
     """Task to tag Ethernet/Trunk Interface on a vThunder device from member subnet"""
+
     @axapi_client_decorator
     def execute(self, member, vthunder):
-        LOG.debug("member: %s", member)
         member_list = member if isinstance(member, list) else [member]
         subnet_list = []
         for member in member_list:

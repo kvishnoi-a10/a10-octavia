@@ -24,8 +24,7 @@ from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.tasks import a10_database_tasks
 from a10_octavia.controller.worker.tasks import health_monitor_tasks
 from a10_octavia.controller.worker.tasks import vthunder_tasks
-from oslo_log import log as logging
-LOG = logging.getLogger(__name__)
+
 
 class HealthMonitorFlows(object):
 
@@ -125,6 +124,7 @@ class HealthMonitorFlows(object):
                       constants.LOADBALANCER]))
         delete_hm_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
+
         delete_hm_flow.add(database_tasks.MarkHealthMonitorPendingDeleteInDB(
             requires=constants.HEALTH_MON))
         # delete_hm_flow.add(model_tasks.

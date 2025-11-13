@@ -401,7 +401,6 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         if fixed_ip_json:
             port['port']['fixed_ips'] = [fixed_ip_json]
 
-    def allocate_vrid_fip(self, project_id, network_id, subnet_id, ip_address=None):
         try:
             new_port = self.network_proxy.create_port(**port['port'])
         except Exception as e:
@@ -532,4 +531,3 @@ class A10OctaviaNeutronDriver(aap.AllowedAddressPairsDriver):
         except Exception as e:
             LOG.exception(str(e))
             raise e
-

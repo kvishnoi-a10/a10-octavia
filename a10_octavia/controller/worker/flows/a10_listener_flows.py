@@ -165,7 +165,7 @@ class ListenerFlows(object):
         """Flow to delete a listener"""
 
         delete_listener_flow = linear_flow.Flow(constants.DELETE_LISTENER_FLOW)
-        delete_listener_flow.add(lifecycle_tasks.ListenersToErrorOnRevertTask(
+        delete_listener_flow.add(lifecycle_tasks.ListenerToErrorOnRevertTask(
             requires=constants.LISTENER))
         delete_listener_flow.add(vthunder_tasks.VthunderInstanceBusy(
             requires=a10constants.COMPUTE_BUSY))
