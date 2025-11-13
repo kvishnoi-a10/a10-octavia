@@ -1066,10 +1066,10 @@ class HandleVRIDFloatingIP(BaseNetworkTask):
         super(HandleVRIDFloatingIP, self).__init__(*arg, **kwargs)
 
     def _add_vrid_to_list(self, vrid_list, subnet, owner):
-        LOG.debug("Creating new VRID entry for subnet_id: %s", subnet.id)
         vrid_value = CONF.a10_global.vrid
         subnet_ids = set([s.id for s in subnet]) if isinstance(subnet, list) else [subnet.id]
         for subnet_id in subnet_ids:
+            LOG.debug("Creating new VRID entry for subnet_id: %s", subnet_id)
             filtered_vrid_list = list(filter(lambda x: x.subnet_id == subnet_id, vrid_list))
             if not filtered_vrid_list:
                 vrid_list.append(data_models.VRID(
@@ -1456,7 +1456,7 @@ class ReserveSubnetAddressForMember(BaseNetworkTask):
                 else:
                     amphorae = None
                 port = self.network_driver.reserve_subnet_addresses(
-                    member[constants.SUBNET_ID], addr_list, amphorae)
+                    member.subnet_id, addr_list, amphorae)
                 LOG.debug("Successfully allocated addresses for nat pool %s on port %s",
                           nat_flavor['pool_name'], port.id)
                 return port
@@ -1602,4 +1602,3 @@ class ValidateSubnet(BaseNetworkTask):
                     member_subnet.cidr):
                 raise exceptions.IPAddressNotInSubnetRangeError(
                     member.get('address'), member_subnet.cidr)
-

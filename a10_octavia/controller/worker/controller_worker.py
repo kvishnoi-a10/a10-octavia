@@ -92,6 +92,7 @@ def ctx_cnt_dec(ctx_lock, ctx_map, key, is_reload_thread, flags):
         ctx_map[key] = (0, 0)
     ctx_lock.release()
 
+
 def flow_notification_handler(state, details, **kwargs):
     LOG.debug('[flow_notification_handler] state: %s', state)
     key = kwargs.get('ctx_key', None)
@@ -242,6 +243,7 @@ class A10ControllerWorker(object):
         
         pool = pool.to_dict(recurse=True)
         topology = CONF.a10_controller_worker.loadbalancer_topology
+
         ctx_flags = [False]
         # rack flow _vthunder_busy_check() will always return False
         busy = self._vthunder_busy_check(health_monitor[constants.PROJECT_ID], False, ctx_flags, provider_lb)
@@ -352,6 +354,7 @@ class A10ControllerWorker(object):
         listener_parent_proj = utils.get_parent_project(listener[constants.PROJECT_ID])
 
         topology = CONF.a10_controller_worker.loadbalancer_topology
+
         ctx_flags = [False]
         load_balancer = db_listener.load_balancer
         
@@ -522,6 +525,7 @@ class A10ControllerWorker(object):
         store[constants.UPDATE_DICT] = {
             constants.TOPOLOGY: topology
         }
+
         ctx_flags = [False]
         try:
             if self._is_rack_flow(loadbalancer[constants.PROJECT_ID], flavor=flavor):
@@ -655,6 +659,7 @@ class A10ControllerWorker(object):
         with session.begin():
             db_lb = self._lb_repo.get(session, id=original_load_balancer[constants.LOADBALANCER_ID]).to_dict(recurse=True)
         topology = CONF.a10_controller_worker.loadbalancer_topology
+
         ctx_flags = [False]
         if constants.VIP not in original_load_balancer:
             original_load_balancer['vip'] = {
@@ -837,7 +842,8 @@ class A10ControllerWorker(object):
         finally:
             self._set_vthunder_available(provider_lb[constants.PROJECT_ID], True, ctx_flags, provider_lb)
 
-    def _is_batch_valid(self, old_member_ids, new_member_ids, updated_member_ids, member_collision_map):
+    def _is_batch_valid(self, old_member_ids, new_member_ids,
+                        updated_member_ids, member_collision_map):
         valid = True
         for mem_id, member_col in member_collision_map.items():
             member, mem_cnt = member_col
@@ -853,7 +859,7 @@ class A10ControllerWorker(object):
                 LOG.warning(error_msg)
                 valid = False
         return valid
-    
+
     def _rollback_members(self, old_member_ids, new_member_ids,
                           updated_member_ids, load_balancer,
                           listeners, pool):
@@ -949,7 +955,6 @@ class A10ControllerWorker(object):
 
         modified_members = provider_old_members + updated_member_models + db_new_members
         member_collision_map = {}
-
         for mem in modified_members:
             if isinstance(mem, tuple):
                 member_data, mem_id = mem
@@ -1292,16 +1297,6 @@ class A10ControllerWorker(object):
         provider_lb = provider_utils.db_loadbalancer_to_provider_loadbalancer(
             db_listener.load_balancer).to_dict(recurse=True)
 
-        db_listener = db_l7policy.listener
-
-        listeners_dicts = (
-            provider_utils.db_listeners_to_provider_dicts_list_of_dicts(
-                [db_listener]))
-        load_balancer = db_listener.load_balancer.to_dict(recurse=True)
-        
-        provider_lb = provider_utils.db_loadbalancer_to_provider_loadbalancer(
-            db_listener.load_balancer).to_dict(recurse=True)
-        
         topology = CONF.a10_controller_worker.loadbalancer_topology
 
         ctx_flags = [False]

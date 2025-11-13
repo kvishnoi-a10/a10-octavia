@@ -127,7 +127,7 @@ class LoadBalancerFlows(object):
         if pools:
             for pool in pools:
                 lb_create_flow.add(self._pool_flows.get_fully_populated_create_pool_flow(
-                    topology, pool.to_dict(), vthunder_flow=True))
+                    topology, pool, vthunder_flow=True))
 
         if listeners:
             sf_name = a10constants.FULLY_POPULATED_LISTENER_CREATE
@@ -715,6 +715,7 @@ class LoadBalancerFlows(object):
         lb_create_flow.add(database_tasks.ReloadLoadBalancer(
             requires=constants.LOADBALANCER_ID,
             provides=constants.LOADBALANCER))
+
         # device-name flavor support
         lb_create_flow.add(a10_database_tasks.GetFlavorData(
             rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
@@ -759,10 +760,12 @@ class LoadBalancerFlows(object):
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER,
                       constants.FLAVOR_DATA),
             provides=a10constants.STATUS))
+
         if pools:
             for pool in pools:
                 lb_create_flow.add(self._pool_flows.get_fully_populated_create_pool_flow(
                     topology, pool, vthunder_conf=vthunder_conf, device_dict=device_dict))
+
         if listeners:
             sf_name = a10constants.FULLY_POPULATED_LISTENER_CREATE
             for listener in listeners:
@@ -1118,4 +1121,3 @@ class LoadBalancerFlows(object):
                 requires=constants.LOADBALANCER_ID))
 
         return (pools_listeners_delete_flow, store)
-

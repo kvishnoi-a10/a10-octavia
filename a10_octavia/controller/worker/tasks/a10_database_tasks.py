@@ -39,7 +39,6 @@ from a10_octavia.common import exceptions
 from a10_octavia.common import utils
 from a10_octavia.controller.worker.tasks import utils as a10_task_utils
 from a10_octavia.db import repositories as a10_repo
-from octavia.certificates.common.auth.barbican_acl import BarbicanACLAuth
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -221,13 +220,8 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
                 
         if vthunder is None:
             return None
-        try:
-            vthunder.password = a10_task_utils.decode_base64(vthunder.password)
-        except Exception as e:
-            LOG.error("Failed to decode vThunder password for LB %s: %s",
-                        loadbalancer_id, str(e))
-            return None
         return vthunder
+
 
 class GetBackupVThunderByLoadBalancer(BaseDatabaseTask):
     """ Get VThunder details from LoadBalancer"""
@@ -305,8 +299,6 @@ class CreateRackVthunderEntry(BaseDatabaseTask):
 
     def execute(self, loadbalancer, vthunder_config):
         hierarchical_mt = vthunder_config.hierarchical_multitenancy
-        barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
-        encoded_password = a10_task_utils.get_password(barbican_client)
         try:
             with db_apis.session().begin() as session:
                 vthunder = self.vthunder_repo.create(
