@@ -1,4 +1,4 @@
-acos-client>=2.10.0		#
+git+https://github.com/a10networks/acos-client.git
 octavia>=7.0.0,<=14.0.2.dev2	# caracal version of octavia
 octavia-lib			    #
 keystone==18.0.0
