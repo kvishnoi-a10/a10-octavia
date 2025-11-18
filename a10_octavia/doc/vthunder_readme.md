@@ -90,7 +90,7 @@ Recommended vThunder flavor settings:
 
 ```shell
 $ openstack image create --disk-format qcow2 --container-format bare --public --file vThunder607.qcow2 vThunder.qcow2
-$ openstack flavor create --vcpu 8 --ram 16384 --disk 40 vThunder_flavor
+$ openstack flavor create --vcpu 4 --ram 16384 --disk 40 vThunder_flavor
 ```
 
 Note down the `image ID` and `flavor ID` of created resources.
