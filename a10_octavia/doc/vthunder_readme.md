@@ -53,7 +53,7 @@ Limitations
 
 ## Installation
 
-This guide assumes that Openstack has already been deployed and Octavia has already been configured with Caracal version.
+This guide assumes that Openstack has already been deployed and Octavia has already been configured with Dalmatian version(2024.2).
 
 *Note: The following configurations should be done as an Openstack admin user*
 
