@@ -34,18 +34,18 @@ Openstack Controller Node Minimum Requirements
 * Memory: 8GB
 * Disk: 20GB 
 * OS: Ubuntu 22.04.5 or later
-* OpenStack (Nova, Neutron, Etc): Caracal Release
-* Octavia version: >=7.0.0, <14.0.2.dev2 (Caracal versions)
+* OpenStack (Nova, Neutron, Etc): Dalmatian Release(2024.2)
+* Octavia version: >=7.0.0, <15.0.2.dev8 (Dalmatian versions)
 
 Openstack Compute Node Minimum Requirements
-* vCPUs: 8
+* vCPUs: 4
 * Memory: 16GB
 * Disk: 40GB
 * OS: Ubuntu 22.04.5 or later
-* Openstack (Nova, Neutron, Etc): Caracal Release
+* Openstack (Nova, Neutron, Etc): Dalmatian Release(2024.2)
 
 ACOS Device Requirements
-* ACOS version: ACOS 6.0.7 build 78
+* ACOS version: ACOS 6.0.7
 * AXAPI version: 3.0
 
 Limitations
