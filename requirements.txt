@@ -1,4 +1,5 @@
-git+https://github.com/a10networks/acos-client.git
+#git+https://github.com/a10networks/acos-client.git
+acos-client
 octavia>=7.0.0,<=15.0.2.dev8	# dalmatian version of octavia
 octavia-lib			    #
 keystone==18.0.0
