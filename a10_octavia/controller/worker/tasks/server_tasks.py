@@ -59,7 +59,7 @@ class MemberCreate(task.Task):
                             ' is not supported on template `template-server`')
             server_temp = {'template-server': template_server}
 
-        if not member.get(constants.ENABLE):
+        if not member.get(constants.ENABLED):
             status = False
         else:
             status = True
