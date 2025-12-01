@@ -726,6 +726,7 @@ class A10ControllerWorker(object):
                         '60 seconds.', 'l7member',
                         member[constants.MEMBER_ID])
             raise db_exceptions.NoResultFound
+        member['enabled'] = db_member.enabled
         pool = db_member.pool
         load_balancer = pool.load_balancer
         flavor_id = load_balancer.to_dict().get(constants.FLAVOR_ID) if load_balancer.to_dict().get(constants.FLAVOR_ID) else CONF.a10_global.default_flavor_id
@@ -918,6 +919,9 @@ class A10ControllerWorker(object):
         with session.begin():
             db_new_members = [self._member_repo.get(session, id=member[constants.MEMBER_ID]).to_dict()
                             for member in new_members]
+        for i in range(len(new_members)):
+            new_members[i]['enabled'] = db_new_members[i]['enabled']
+
         # The API may not have committed all of the new member records yet.
         # Make sure we retry looking them up.
         if None in db_new_members or len(db_new_members) != len(new_members):
