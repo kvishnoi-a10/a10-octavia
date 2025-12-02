@@ -207,11 +207,9 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
             if vthunder:
                 if flag:
                     secret_name = loadbalancer.get(constants.PROJECT_ID) + '_default_vthunder_password'
-                    vthunder.password = "YTEw"
-                    #vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID), secret_name)
+                    vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID), secret_name)
                 else:
-                    vthunder.password = "QTEwbmV0d29ya3Mh"
-                    #vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
+                    vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
                 vthunder.password = a10_task_utils.decode_base64(vthunder.password)
                 
             if not master_amphora_status:
