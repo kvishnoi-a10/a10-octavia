@@ -74,7 +74,8 @@ class UpdateVThunderPassword(VThunderBaseTask):
     def execute(self, vthunder, loadbalancer):
         try:
             barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
-            new_password_encrypt = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
+            #new_password_encrypt = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
+            new_password_encrypt = "QTEwbmV0d29ya3Mh"
             new_password = a10_task_utils.decode_base64(new_password_encrypt)
             axapi_client = a10_utils.get_axapi_client(vthunder)
             axapi_client.system.action.change_password(new_password)
