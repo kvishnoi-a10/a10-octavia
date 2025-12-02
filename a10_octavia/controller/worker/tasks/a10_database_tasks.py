@@ -203,19 +203,16 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
             barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
             vthunder = self.vthunder_repo.get_vthunder_from_lb(
                 session, loadbalancer_id)
-            LOG.info("***********inside GetVThunderByLoadBalancer*********** %s", vthunder)
+            
             if vthunder:
                 if flag:
                     secret_name = loadbalancer.get(constants.PROJECT_ID) + '_default_vthunder_password'
-                    vth_pass = "YTEw"
-                    LOG.info("updating default_vthunder_password %s", vth_pass)
+                    vthunder.password = "YTEw"
                     #vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID), secret_name)
                 else:
-                    vth_pass = "QTEwbmV0d29ya3Mh"
-                    LOG.info("updating vthunder_password %s", vth_pass)
+                    vthunder.password = "QTEwbmV0d29ya3Mh"
                     #vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
-                vthunder.password = a10_task_utils.decode_base64(vth_pass)
-                LOG.info("vthunder_password is %s", vthunder.password)
+                vthunder.password = a10_task_utils.decode_base64(vthunder.password)
                 
             if not master_amphora_status:
                 vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
