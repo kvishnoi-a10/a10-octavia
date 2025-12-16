@@ -218,6 +218,7 @@ class VThunderFlows(object):
             create_amp_for_lb_subflow.add(
                 a10_database_tasks.GetBackupVThunderByLoadBalancer(
                     requires=constants.LOADBALANCER,
+                    inject={"flag": True},
                     provides=a10constants.BACKUP_VTHUNDER))
             create_amp_for_lb_subflow.add(
                 vthunder_tasks.VThunderComputeConnectivityWait(
