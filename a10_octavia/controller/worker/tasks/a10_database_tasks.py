@@ -194,6 +194,27 @@ class DeleteVThunderEntry(BaseDatabaseTask):
             pass
         LOG.info("Successfully deleted vthunder entry in database.")
 
+class GetSpareVThunder(BaseDatabaseTask):
+    """Get VThunder from db using LoadBalancer"""
+
+    def execute(self, vthunder, flag=False):
+        with db_apis.session().begin() as session:
+            barbican_client = BarbicanACLAuth().get_barbican_client()
+            
+            if vthunder:
+                if flag:
+                    secret_name = a10constants.DEFAULT_VTHUNDER_PASSWORD
+                    vthunder.password = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
+                else:
+                    secret_name = 'spare_vthunder_password'
+                    vthunder.password = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
+                vthunder.password = a10_task_utils.decode_base64(vthunder.password)
+                
+        if vthunder is None:
+            return None
+        return vthunder
+
+
 class GetVThunderByLoadBalancer(BaseDatabaseTask):
     """Get VThunder from db using LoadBalancer"""
 
@@ -206,7 +227,7 @@ class GetVThunderByLoadBalancer(BaseDatabaseTask):
             
             if vthunder:
                 if flag:
-                    secret_name = loadbalancer.get(constants.PROJECT_ID) + '_default_vthunder_password'
+                    secret_name = a10constants.DEFAULT_VTHUNDER_PASSWORD
                     vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID), secret_name)
                 else:
                     vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
@@ -240,7 +261,7 @@ class GetBackupVThunderByLoadBalancer(BaseDatabaseTask):
                         session, loadbalancer_id)
             if backup_vthunder:
                 if flag:
-                    secret_name = loadbalancer.get(constants.PROJECT_ID) + '_default_vthunder_password'
+                    secret_name = a10constants.DEFAULT_VTHUNDER_PASSWORD
                     backup_vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID), secret_name)
                 else:
                     backup_vthunder.password = a10_task_utils.get_password(barbican_client, loadbalancer.get(constants.PROJECT_ID))
@@ -397,13 +418,13 @@ class CreateSpareVThunderEntry(BaseDatabaseTask):
         with db_apis.session().begin() as session:
             vthunder = self.vthunder_repo.create(
                 session, vthunder_id=vthunder_id,
-                amphora_id=amphora.id,
+                amphora_id=amphora[constants.ID],
                 device_name=vthunder_id, username=username,
-                password=password, ip_address=amphora.lb_network_ip,
+                ip_address=amphora[constants.LB_NETWORK_IP],
                 undercloud=False, axapi_version=axapi_version,
                 loadbalancer_id=None,
                 project_id=None,
-                compute_id=amphora.compute_id,
+                compute_id=amphora[constants.COMPUTE_ID],
                 topology=a10constants.TOPOLOGY_SPARE,
                 role="MASTER",
                 status="BOOTING",

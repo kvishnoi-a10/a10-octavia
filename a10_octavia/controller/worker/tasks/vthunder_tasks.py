@@ -68,6 +68,23 @@ class VThunderBaseTask(task.Task):
             self._network_driver = a10_utils.get_network_driver()
         return self._network_driver
 
+class UpdateSpareVThunderPassword(VThunderBaseTask):
+    """Task to change the vthunder password"""
+
+    def execute(self, vthunder):
+        try:
+            barbican_client = BarbicanACLAuth().get_barbican_client()
+            secret_name = a10constants.SPARE_VTHUNDER_PASSWORD
+            new_password_encrypt = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
+            new_password = a10_task_utils.decode_base64(new_password_encrypt)
+            axapi_client = a10_utils.get_axapi_client(vthunder)
+            axapi_client.system.action.change_password(new_password)
+            vthunder.password = new_password
+            return vthunder
+        except Exception as e:
+            LOG.exception("Failed to change the spare vthunder password: %s", str(e))
+            raise e
+
 class UpdateVThunderPassword(VThunderBaseTask):
     """Task to change the vthunder password"""
 

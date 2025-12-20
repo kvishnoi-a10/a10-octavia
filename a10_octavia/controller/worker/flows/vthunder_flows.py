@@ -71,6 +71,19 @@ class VThunderFlows(object):
         create_vthunder_flow.add(a10_database_tasks.CreateSpareVThunderEntry(
             requires=(constants.AMPHORA),
             provides=a10constants.VTHUNDER))
+        create_vthunder_flow.add(a10_database_tasks.GetSpareVThunder(
+            name=sf_name + '-' + a10constants.GET_SPARE_VTHUNDER,
+            requires=a10constants.VTHUNDER,
+            inject={"flag": True},
+            provides=a10constants.VTHUNDER))
+        create_vthunder_flow.add(
+            vthunder_tasks.VThunderComputeConnectivityWait(
+                name=sf_name + '-' + constants.AMP_COMPUTE_CONNECTIVITY_WAIT,
+                requires=(a10constants.VTHUNDER, constants.AMPHORA)))
+        create_vthunder_flow.add(vthunder_tasks.UpdateSpareVThunderPassword(
+                name=sf_name + '-' + a10constants.UPDATE_SPARE_VTHUNDER_PASSWORD,
+                requires=a10constants.VTHUNDER,
+                provides=a10constants.VTHUNDER))
         create_vthunder_flow.add(
             vthunder_tasks.VThunderComputeConnectivityWait(
                 name=sf_name + '-' + constants.AMP_COMPUTE_CONNECTIVITY_WAIT,
