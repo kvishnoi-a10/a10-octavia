@@ -39,6 +39,8 @@ IFNUM_MASTER = 'ifnum_master'
 IPV6_ADDRESS_LIST = 'ifnum_address'
 LISTENER_STATS = 'listener_stats'
 
+LB_CREATE_SPARES_POOL_PRIORITY = 60
+
 # Octavia taskflow flow and task names (missing name in victoria octavia)
 RELOADLOAD_BALANCER = 'octavia-reloadload-balancer'
 
