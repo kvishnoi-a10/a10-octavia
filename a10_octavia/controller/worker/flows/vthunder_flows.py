@@ -46,6 +46,7 @@ class VThunderFlows(object):
         create_vthunder_flow = linear_flow.Flow(
             constants.CREATE_AMPHORA_FLOW)
         sf_name = a10constants.SPARE_VTHUNDER_CREATE
+        LOG.info("**going to call tasks**")
         create_vthunder_flow.add(database_tasks.CreateAmphoraInDB(
             name=sf_name + '-' + constants.CREATE_AMPHORA_INDB,
             provides=constants.AMPHORA_ID))
