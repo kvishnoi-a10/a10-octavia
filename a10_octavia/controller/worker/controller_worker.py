@@ -157,7 +157,7 @@ class A10ControllerWorker(object):
         store={constants.BUILD_TYPE_PRIORITY:
                 a10constants.LB_CREATE_SPARES_POOL_PRIORITY,
                 constants.FLAVOR: None}
-        create_vthunder_tf = self.run_flow(flow_utils.get_create_vthunder_flow(), store=store)
+        create_vthunder_tf = self.run_flow(flow_utils.get_create_vthunder_flow, store=store)
         create_vthunder_tf.run()
 
         return create_vthunder_tf.storage.fetch('amphora')
