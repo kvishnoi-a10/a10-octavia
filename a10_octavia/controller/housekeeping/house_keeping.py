@@ -38,7 +38,7 @@ class SpareAmphora(object):
         self.vthunder_repo = a10repo.VThunderRepository()
         self.cw = cw.A10ControllerWorker()
 
-    def _create_amphora():
+    def _create_amphora(self):
         worker = cw.A10ControllerWorker()
         worker.create_amphora()
 
@@ -60,27 +60,13 @@ class SpareAmphora(object):
         if diff_count > 0:
             LOG.info("Initiating creation of %d spare amphora.", diff_count)
 
-            with futures.ThreadPoolExecutor(max_workers=conf_spare_cnt) as executor:
-                for _ in range(diff_count):
+            #Call Amphora Create Flow diff_count times
+            with futures.ThreadPoolExecutor(
+                    max_workers=CONF.a10_house_keeping.spare_amphora_pool_size
+            ) as executor:
+                for i in range(1, diff_count + 1):
+                    LOG.debug("Starting amphorae number %d ...", i)
                     executor.submit(self._create_amphora())
-            # Create only up to the configured pool size or diff_count
-            # create_count = min(diff_count, conf_spare_cnt)
-
-            # for i in range(1, create_count + 1):
-            #     LOG.info("Starting amphora number %d ...", i)
-            #     try:
-            #         self.cw.create_amphora()
-            #     except Exception as e:
-            #         LOG.exception("Failed to create spare amphora %d: %s", i, e)
-
-
-            # Call Amphora Create Flow diff_count times
-            # with futures.ThreadPoolExecutor(
-            #         max_workers=CONF.a10_house_keeping.spare_amphora_pool_size
-            # ) as executor:
-            #     for i in range(1, diff_count + 1):
-            #         LOG.debug("Starting amphorae number %d ...", i)
-            #         executor.submit(self.cw.create_amphora)
         else:
             LOG.debug("Current spare vThunder count satisfies the requirement")
 
