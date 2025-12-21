@@ -230,6 +230,17 @@ class VThunderRepository(BaseRepository):
             return None
 
         return model.to_data_model()
+    
+    def get_vthunder_from_vthunder_id(self, session, vthunder_id):
+        model = session.query(self.model_class).filter(
+            self.model_class.vthunder_id == vthunder_id).filter(
+            or_(self.model_class.role == "STANDALONE",
+                self.model_class.role == "MASTER")).first()
+
+        if not model:
+            return None
+
+        return model.to_data_model()
 
     def get_backup_vthunder_from_lb(self, session, lb_id):
         model = session.query(self.model_class).filter(

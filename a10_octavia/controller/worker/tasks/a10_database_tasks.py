@@ -200,6 +200,8 @@ class GetSpareVThunder(BaseDatabaseTask):
     def execute(self, vthunder, flag=False):
         with db_apis.session().begin() as session:
             barbican_client = BarbicanACLAuth().get_barbican_client()
+            vthunder = self.vthunder_repo.get_vthunder_from_vthunder_id(
+                session, vthunder.vthunder_id)
             
             if vthunder:
                 if flag:
@@ -396,15 +398,12 @@ class MarkVThunderStatusInDB(BaseDatabaseTask):
     def execute(self, vthunder, status):
         try:
             if vthunder:
-                LOG.info("vthunder: %s", vthunder.to_dict())
-                LOG.info("status: %s", status)
                 with db_apis.session().begin() as session:
                     self.vthunder_repo.update(
                         session,
                         vthunder.id,
                         status=status,
                         updated_at=datetime.utcnow())
-                    LOG.info("vthunder: %s", vthunder.to_dict())
         except (sqlalchemy.orm.exc.NoResultFound,
                 sqlalchemy.orm.exc.UnmappedInstanceError):
             LOG.debug('No existing amphora health record to mark busy '
