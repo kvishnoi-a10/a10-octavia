@@ -206,7 +206,7 @@ class GetSpareVThunder(BaseDatabaseTask):
                     secret_name = a10constants.DEFAULT_VTHUNDER_PASSWORD
                     vthunder.password = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
                 else:
-                    secret_name = 'spare_vthunder_password'
+                    secret_name = a10constants.SPARE_VTHUNDER_PASSWORD
                     vthunder.password = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
                 vthunder.password = a10_task_utils.decode_base64(vthunder.password)
                 
