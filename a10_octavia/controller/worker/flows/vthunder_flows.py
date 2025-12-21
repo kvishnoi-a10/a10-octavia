@@ -88,7 +88,7 @@ class VThunderFlows(object):
                 provides=a10constants.VTHUNDER))
         create_vthunder_flow.add(
             vthunder_tasks.VThunderComputeConnectivityWait(
-                name=sf_name + '-' + constants.AMP_COMPUTE_CONNECTIVITY_WAIT,
+                name=sf_name + '--' + constants.AMP_COMPUTE_CONNECTIVITY_WAIT,
                 requires=(a10constants.VTHUNDER, constants.AMPHORA)))
         create_vthunder_flow.add(vthunder_tasks.EnableInterfaceOnSpare(
             name=sf_name + '-' + a10constants.ENABLE_VTHUNDER_INTERFACE,
