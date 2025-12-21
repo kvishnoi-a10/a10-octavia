@@ -396,12 +396,15 @@ class MarkVThunderStatusInDB(BaseDatabaseTask):
     def execute(self, vthunder, status):
         try:
             if vthunder:
+                LOG.info("vthunder:", vthunder.to_dict())
+                LOG.info("status:", status)
                 with db_apis.session().begin() as session:
                     self.vthunder_repo.update(
                         session,
                         vthunder.id,
                         status=status,
                         updated_at=datetime.utcnow())
+                    LOG.info("vthunder:", vthunder.to_dict())
         except (sqlalchemy.orm.exc.NoResultFound,
                 sqlalchemy.orm.exc.UnmappedInstanceError):
             LOG.debug('No existing amphora health record to mark busy '
