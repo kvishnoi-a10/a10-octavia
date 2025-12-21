@@ -57,9 +57,11 @@ class ComputeCreate(BaseComputeTask):
         if not mgmt_net:
             raise a10_exception.NetworkNotFoundToBootAmphora()
 
-        with db_apis.session().begin() as session:
-            lb = self._lb_repo.get(session,
-                                   id=loadbalancer[constants.LOADBALANCER_ID])
+        if loadbalancer:
+            with db_apis.session().begin() as session:
+                lb = self._lb_repo.get(session,
+                                    id=loadbalancer[constants.LOADBALANCER_ID])
+
         network_ids = set(boot_net_list) if boot_net_list else set()
         if CONF.glm_license.amp_license_network:
             network_ids.add(CONF.glm_license.amp_license_network)
