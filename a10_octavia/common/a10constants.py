@@ -141,6 +141,7 @@ DUAL_STACK_MASK = 10000
 # ============================
 # Taskflow flow and task names
 # ============================
+GET_MASTER_VTHUNDER_FOR_VRID = 'get_master_vthunder_for_vrid'
 GET_VTHUNDER_FOR_LB_SUBFLOW = 'octavia-get-vthunder-for-lb-subflow'
 BACKUP_AMPHORA_PLUG = 'backup-amphora-plug'
 GET_MASTER_VTHUNDER_INTERFACE = 'get-master-vthunder-intercae'
