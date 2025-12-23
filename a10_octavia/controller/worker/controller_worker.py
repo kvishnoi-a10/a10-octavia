@@ -153,7 +153,6 @@ class A10ControllerWorker(object):
             return tf
 
     def create_amphora(self):
-        LOG.info("*****inside controller create_amphora******")
         store={constants.BUILD_TYPE_PRIORITY:
                 a10constants.LB_CREATE_SPARES_POOL_PRIORITY,
                 constants.FLAVOR: None}
