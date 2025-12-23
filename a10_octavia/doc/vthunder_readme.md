@@ -102,11 +102,17 @@ Note down the `image ID` and `flavor ID` of created resources.
 *Note: Ensure that all barbican services are running*
 
 ```shell
-$ openstack secret store --name <admin_project_id>_default_vthunder_password --payload YTEw --payload-content-type text/plain
+$ openstack secret store --name default_vthunder_password --payload YTEw --payload-content-type text/plain
 $ openstack secret store --name <admin_project_id>_vthunder_password --payload <new_password_base64> --payload-content-type text/plain
 ```
 
-*Note: 'YTEw' is the Base64-encoded value of the default password "a10". Replace <new_password_base64> with Base64-encoded value of updated vThunder password* 
+Create Barbican secret for provisioning a spare vThunder
+
+```shell
+$ openstack secret store --name spare_vthunder_password --payload <new_password_base64> --payload-content-type text/plain
+```
+
+*Note: 'YTEw' is the Base64-encoded value of the default password "a10". Replace <new_password_base64> with Base64-encoded value to update vThunder password* 
 
 #### 3ac. Create the a10-octavia.conf file
 ```shell
