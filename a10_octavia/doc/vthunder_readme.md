@@ -106,7 +106,7 @@ $ openstack secret store --name default_vthunder_password --payload YTEw --paylo
 $ openstack secret store --name <admin_project_id>_vthunder_password --payload <new_password_base64> --payload-content-type text/plain
 ```
 
-Create Barbican secret for provisioning a spare vThunder
+Create Barbican secret for provisioning a spare vThunder in case of Failover
 
 ```shell
 $ openstack secret store --name spare_vthunder_password --payload <new_password_base64> --payload-content-type text/plain
