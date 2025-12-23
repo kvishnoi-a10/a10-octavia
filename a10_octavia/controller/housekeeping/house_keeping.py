@@ -33,38 +33,42 @@ hk_ctx_map = mp_mgr.dict()
 hk_ctx_lock = mp_mgr.Lock()
 
 
-# class SpareAmphora(object):
-#     def __init__(self):
-#         self.vthunder_repo = a10repo.VThunderRepository()
-#         self.cw = cw.A10ControllerWorker()
+class SpareAmphora(object):
+    def __init__(self):
+        self.vthunder_repo = a10repo.VThunderRepository()
+        self.cw = cw.A10ControllerWorker()
 
-#     def spare_check(self):
-#         """Checks the DB for the Spare amphora count.
+    def _create_amphora(self):
+        worker = cw.A10ControllerWorker()
+        worker.create_amphora()
 
-#         If it's less than the requirement, starts new amphora.
-#         """
-#         session = db_api.get_session()
-#         conf_spare_cnt = CONF.a10_house_keeping.spare_amphora_pool_size
-#         curr_spare_cnt = self.vthunder_repo.get_spare_vthunder_count(session)
-#         busy_spare_cnt = self.vthunder_repo.get_busy_spare_vthunder_count(session)
-#         curr_spare_cnt = curr_spare_cnt + busy_spare_cnt
-#         LOG.debug("Required Spare vThunder count : %d", conf_spare_cnt)
-#         LOG.debug("Current Spare vThunder count : %d", curr_spare_cnt)
-#         diff_count = conf_spare_cnt - curr_spare_cnt
+    def spare_check(self):
+        """Checks the DB for the Spare amphora count.
 
-#         # When the current spare amphora is less than required
-#         if diff_count > 0:
-#             LOG.info("Initiating creation of %d spare amphora.", diff_count)
+        If it's less than the requirement, starts new amphora.
+        """
+        session = db_api.get_session()
+        conf_spare_cnt = CONF.a10_house_keeping.spare_amphora_pool_size
+        curr_spare_cnt = self.vthunder_repo.get_spare_vthunder_count(session)
+        busy_spare_cnt = self.vthunder_repo.get_busy_spare_vthunder_count(session)
+        curr_spare_cnt = curr_spare_cnt + busy_spare_cnt
+        LOG.debug("Required Spare vThunder count : %d", conf_spare_cnt)
+        LOG.debug("Current Spare vThunder count : %d", curr_spare_cnt)
+        diff_count = conf_spare_cnt - curr_spare_cnt
 
-#             # Call Amphora Create Flow diff_count times
-#             with futures.ThreadPoolExecutor(
-#                     max_workers=CONF.a10_house_keeping.spare_amphora_pool_size
-#             ) as executor:
-#                 for i in range(1, diff_count + 1):
-#                     LOG.debug("Starting amphorae number %d ...", i)
-#                     executor.submit(self.cw.create_amphora)
-#         else:
-#             LOG.debug("Current spare vThunder count satisfies the requirement")
+        # When the current spare amphora is less than required
+        if diff_count > 0:
+            LOG.info("Initiating creation of %d spare amphora.", diff_count)
+
+            #Call Amphora Create Flow diff_count times
+            with futures.ThreadPoolExecutor(
+                    max_workers=CONF.a10_house_keeping.spare_amphora_pool_size
+            ) as executor:
+                for i in range(1, diff_count + 1):
+                    LOG.debug("Starting amphorae number %d ...", i)
+                    executor.submit(self._create_amphora())
+        else:
+            LOG.debug("Current spare vThunder count satisfies the requirement")
 
 
 class DatabaseCleanup(object):

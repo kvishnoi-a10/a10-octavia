@@ -39,6 +39,8 @@ IFNUM_MASTER = 'ifnum_master'
 IPV6_ADDRESS_LIST = 'ifnum_address'
 LISTENER_STATS = 'listener_stats'
 
+LB_CREATE_SPARES_POOL_PRIORITY = 60
+
 # Octavia taskflow flow and task names (missing name in victoria octavia)
 RELOADLOAD_BALANCER = 'octavia-reloadload-balancer'
 
@@ -55,6 +57,8 @@ NAT_FLAVOR = 'nat_flavor'
 SUBNET_PORT = 'subnet_port'
 WRITE_MEM_SHARED = 'write_mem_shared'
 WRITE_MEM_PRIVATE = 'write_mem_private'
+DEFAULT_VTHUNDER_PASSWORD = 'default_vthunder_password'
+SPARE_VTHUNDER_PASSWORD = 'spare_vthunder_password'
 
 FAILED = 'FAILED'
 USED_SPARE = 'USED_SPARE'
@@ -137,6 +141,7 @@ DUAL_STACK_MASK = 10000
 # ============================
 # Taskflow flow and task names
 # ============================
+GET_MASTER_VTHUNDER_FOR_VRID = 'get_master_vthunder_for_vrid'
 GET_VTHUNDER_FOR_LB_SUBFLOW = 'octavia-get-vthunder-for-lb-subflow'
 BACKUP_AMPHORA_PLUG = 'backup-amphora-plug'
 GET_MASTER_VTHUNDER_INTERFACE = 'get-master-vthunder-intercae'
@@ -205,12 +210,14 @@ GET_SPARE_COMPUTE_FOR_PROJECT = 'get-spare-compute-for-project'
 DELETE_STALE_SPARE_VTHUNDER = 'delete-stale-spare-vthunder'
 CREATE_VTHUNDER_ENTRY = 'create-vthunder-entry'
 UPDATE_VTHUNDER_PASSWORD = 'update-vthunder-password'
+UPDATE_SPARE_VTHUNDER_PASSWORD = 'update-spare-vthunder-password'
 BACKUP_UPDATE_VTHUNDER_PASSWORD = 'backup-update-vthunder-password'
 UPDATE_VTHUNDER_ENTRY = 'update-vthunder-entry'
 UPDATE_ACOS_VERSION_IN_VTHUNDER_ENTRY = 'update-acos-version-in-vthunder-entry'
 UPDATE_ACOS_VERSION_FOR_BACKUP_VTHUNDER = 'update-acos-version-for-backup-vthunder'
 VTHUNDER_BY_LB = 'vthunder-by-loadbalancer'
 GET_VTHUNDER_BY_LB = 'get-vthunder-by-lb'
+GET_SPARE_VTHUNDER = 'get-spare-vthunder'
 VTHUNDER_CONNECTIVITY_WAIT = 'vthunder-connectivity-wait'
 WAIT_FOR_VTHUNDER_CONNECTIVITY = 'wait-for-vthunder-connectivity'
 WAIT_FOR_VTHUNDER_CONNECTIVITY_RETRY = 'wait-for-vthunder-connectivity-retry'
