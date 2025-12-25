@@ -1577,11 +1577,11 @@ class A10ControllerWorker(object):
             #                                      id=vthunder_id)
             if not vthunder:
                 LOG.warning("Could not fetch vThunder %s from DB, ignoring "
-                            "failover request.", vthunder.vthunder_id)
+                            "failover request.", vthunder[a10constants.VTHUNDER_ID])
                 return
 
-            LOG.info("Starting Failover process on %s", vthunder.ip_address)
-
+            LOG.info("Starting Failover process on %s", vthunder[a10constants.IP_ADDRESS])
+            LOG.info("#################vthunder is %s", vthunder)
             store = {a10constants.VTHUNDER: vthunder,
                      a10constants.FAILOVER_VTHUNDER: vthunder}
             failover_tf = None
@@ -1604,8 +1604,7 @@ class A10ControllerWorker(object):
                         store=store)
 
             if failover_tf:
-                with tf_logging.DynamicLoggingListener(failover_tf, log=LOG):
-                    failover_tf.run()
+                failover_tf.run()
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -1656,15 +1655,13 @@ class A10ControllerWorker(object):
 
         for vthunder in thunders:
             delete_compute = False
+            LOG.info("############vthunder is %s", vthunder)
             if vthunder.status == 'DELETED' and vthunder.compute_id is not None:
                 delete_compute = self._vthunder_repo.get_delete_compute_flag(db_apis.get_session(),
                                                                              vthunder.compute_id)
             try:
-                flow = flow_utils.get_write_memory_flow(vthunder, store, delete_compute)
-                write_mem_tf = self.tf_engine.taskflow_load(flow, store=store)
-
-                with tf_logging.DynamicLoggingListener(write_mem_tf, log=LOG):
-                    write_mem_tf.run()
+                write_mem_tf = flow_utils.get_write_memory_flow(vthunder, store, delete_compute)
+                write_mem_tf.run()
             except Exception:
                 # continue on other thunders (assume exception is logged)
                 pass
@@ -1677,9 +1674,9 @@ class A10ControllerWorker(object):
         """
         store = {}
         for vthunder in thunders:
+            LOG.info("#############vthunder is %s", vthunder)
             try:
-                flow = flow_utils.get_reload_check_flow(vthunder, store)
-                reload_check_tf = self.tf_engine.taskflow_load(flow,store=store)
+                reload_check_tf = flow_utils.get_reload_check_flow(vthunder, store)
                 reload_check_tf.run()
             except Exception:
                 # continue on other thunders (assume exception is logged)
@@ -1694,8 +1691,8 @@ class A10ControllerWorker(object):
                 db_apis.get_session(),
                 ip_address=ip)
             for vthunder in thunders:
-                flow = flow_utils.get_listener_stats_flow(vthunder, store)
-                vthunder_stats_tf = self.tf_engine.taskflow_load(flow,store=store)
+                LOG.info("#################vthunder is %s", vthunder)
+                vthunder_stats_tf = flow_utils.get_listener_stats_flow(vthunder, store)
                 vthunder_stats_tf.run()
         except Exception:
             # continue on other thunders (assume exception is logged)
