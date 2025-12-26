@@ -1469,6 +1469,7 @@ class VCSSyncWait(VThunderBaseTask):
 
     @axapi_client_decorator
     def execute(self, vthunder, master_amphora_status=True, backup_amphora_status=True):
+        import time; time.sleep(120)
         if not vthunder or CONF.a10_controller_worker.loadbalancer_topology != "ACTIVE_STANDBY":
             return
 
