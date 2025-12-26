@@ -1581,19 +1581,19 @@ class A10ControllerWorker(object):
             failover_tf = None
             if vthunder.topology == a10constants.TOPOLOGY_SPARE:
                 failover_tf = self.run_flow(
-                    flow_utils.get_failover_spare_vthunder_flow,store,
+                    flow_utils.get_failover_spare_vthunder_flow,
                     store=store)
             elif vthunder.topology == constants.TOPOLOGY_ACTIVE_STANDBY:
                 health_vthunder_count = self._vthunder_repo.get_health_vthunder_count_for_lb(
                     db_apis.get_session(), vthunder.loadbalancer_id)
                 if health_vthunder_count > 0:
                     failover_tf = self.run_flow(
-                        flow_utils.get_failover_vcs_vthunder_flow,store)
+                        flow_utils.get_failover_vcs_vthunder_flow,store=store)
                 else:
                     LOG.warning("Failover for a total HA Pair failure is not supported. "
                                 "Pair will be kept in failed state.")
                     failover_tf = self.run_flow(
-                        flow_utils.get_failover_restore_vthunder_flow,store,
+                        flow_utils.get_failover_restore_vthunder_flow,
                         store=store)
 
             if failover_tf:

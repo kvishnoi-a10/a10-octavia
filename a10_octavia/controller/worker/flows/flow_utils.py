@@ -150,11 +150,11 @@ def get_reload_check_flow(vthunder, store):
 def get_listener_stats_flow(vthunder, store):
     return LISTENER_FLOWS.get_listener_stats_flow(vthunder, store)
 
-def get_failover_vcs_vthunder_flow(store):
-    return VTH_FLOWS.get_failover_vcs_vthunder_flow(store)
+def get_failover_vcs_vthunder_flow():
+    return VTH_FLOWS.get_failover_vcs_vthunder_flow()
 
-def get_failover_spare_vthunder_flow(store):
-    return VTH_FLOWS.get_failover_spare_vthunder_flow(store)
+def get_failover_spare_vthunder_flow():
+    return VTH_FLOWS.get_failover_spare_vthunder_flow()
 
-def get_failover_restore_vthunder_flow(store):
-    return VTH_FLOWS.get_failover_restore_vthunder_flow(store)
+def get_failover_restore_vthunder_flow():
+    return VTH_FLOWS.get_failover_restore_vthunder_flow()
