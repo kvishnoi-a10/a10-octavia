@@ -197,24 +197,23 @@ class DeleteVThunderEntry(BaseDatabaseTask):
 class GetSpareVThunder(BaseDatabaseTask):
     """Get VThunder from db using LoadBalancer"""
 
-    def execute(self, vthunder, flag=False):
-        with db_apis.session().begin() as session:
-            barbican_client = BarbicanACLAuth().get_barbican_client()
-            vthunder = self.vthunder_repo.get_vthunder_from_vthunder_id(
-                session, vthunder.vthunder_id)
+    def execute(self, spare_vthunder, flag=False):
+        if spare_vthunder:
+            with db_apis.session().begin() as session:
+                barbican_client = BarbicanACLAuth().get_barbican_client()
+                vthunder = self.vthunder_repo.get_vthunder_from_vthunder_id(
+                    session, spare_vthunder.vthunder_id)
             
-            if vthunder:
-                if flag:
-                    secret_name = a10constants.DEFAULT_VTHUNDER_PASSWORD
-                    vthunder.password = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
-                else:
-                    secret_name = a10constants.SPARE_VTHUNDER_PASSWORD
-                    vthunder.password = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
-                vthunder.password = a10_task_utils.decode_base64(vthunder.password)
+                if vthunder:
+                    if flag:
+                        secret_name = a10constants.DEFAULT_VTHUNDER_PASSWORD
+                        vthunder.password = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
+                    else:
+                        secret_name = a10constants.SPARE_VTHUNDER_PASSWORD
+                        vthunder.password = a10_task_utils.get_password(barbican_client, vthunder.project_id, secret_name)
+                    vthunder.password = a10_task_utils.decode_base64(vthunder.password)
                 
-        if vthunder is None:
-            return None
-        return vthunder
+            return vthunder
 
 
 class GetVThunderByLoadBalancer(BaseDatabaseTask):
