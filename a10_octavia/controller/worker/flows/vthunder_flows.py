@@ -700,6 +700,10 @@ class VThunderFlows(object):
         """Flow to get spare amphora for failvoer"""
         sf_name = 'failover_get_spare_amphora'
         get_spare_flow = linear_flow.Flow(sf_name)
+        get_spare_flow.add(a10_database_tasks.GetSpareVThunder(
+            name=sf_name + '-' + a10constants.GET_SPARE_VTHUNDER,
+            rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER},
+            provides=a10constants.SPARE_VTHUNDER))
         get_spare_flow.add(a10_network_tasks.PlugNetworksByID(
             name=sf_name + '-' + a10constants.PLUG_NETWORK_BY_IDS,
             requires=(a10constants.NETWORK_LIST),
@@ -754,9 +758,23 @@ class VThunderFlows(object):
         create_amp_flow.add(a10_database_tasks.CreateSpareVThunderEntry(
             requires=(constants.AMPHORA),
             provides=a10constants.SPARE_VTHUNDER))
+        create_amp_flow.add(a10_database_tasks.GetSpareVThunder(
+            name=sf_name + '-' + a10constants.GET_SPARE_VTHUNDER,
+            rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER},
+            inject={"flag": True},
+            provides=a10constants.SPARE_VTHUNDER))
         create_amp_flow.add(
             vthunder_tasks.VThunderComputeConnectivityWait(
                 name=sf_name + '-' + constants.AMP_COMPUTE_CONNECTIVITY_WAIT,
+                requires=constants.AMPHORA,
+                rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER}))
+        create_amp_flow.add(vthunder_tasks.UpdateSpareVThunderPassword(
+                name=sf_name + '-' + a10constants.UPDATE_SPARE_VTHUNDER_PASSWORD,
+                rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER},
+                provides=a10constants.VTHUNDER))
+        create_amp_flow.add(
+            vthunder_tasks.VThunderComputeConnectivityWait(
+                name=sf_name + '--' + constants.AMP_COMPUTE_CONNECTIVITY_WAIT,
                 requires=constants.AMPHORA,
                 rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER}))
         create_amp_flow.add(a10_database_tasks.MarkVThunderStatusInDB(
