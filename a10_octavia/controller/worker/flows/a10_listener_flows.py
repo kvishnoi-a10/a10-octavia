@@ -459,6 +459,14 @@ class ListenerFlows(object):
         listener_stats_flow = linear_flow.Flow(sf_name)
         vthunder_store = {}
         vthunder_store[vthunder] = vthunder
+        listener_stats_flow.add(database_tasks.ReloadLoadBalancer(
+            name=sf_name + '-' + a10constants.RELOADLOAD_BALANCER,
+            requires=constants.LOADBALANCER_ID,
+            inject={constants.LOADBALANCER_ID: vthunder.loadbalancer_id},
+            provides=constants.LOADBALANCER))
+        listener_stats_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
+            requires=constants.LOADBALANCER,
+            provides=a10constants.VTHUNDER))
         listener_stats_flow.add(vthunder_tasks.GetListenersStats(
             name='{flow}-{id}'.format(
                 id=vthunder.vthunder_id,
