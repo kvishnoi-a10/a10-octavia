@@ -546,16 +546,10 @@ class A10ControllerWorker(object):
                     (a10constants.COMPUTE_BUSY, busy),
                     (a10constants.VTHUNDER_CONFIG, None),
                     (a10constants.USE_DEVICE_FLAVOR, False)])
-                #create_lb_tf = self.run_flow(create_lb_flow, store=store)
-                #LOG.info("Project Id is %s", lb.project_id)
                 create_lb_tf = self.run_flow(flow_utils.get_create_load_balancer_flow, loadbalancer, topology, project_id=loadbalancer[constants.PROJECT_ID], listeners=lb.get(constants.LISTENERS), pools=lb.get(constants.POOLS), store=store)
                 self._register_flow_notify_handler(create_lb_tf, loadbalancer[constants.PROJECT_ID], True,
                                                 busy, ctx_flags, loadbalancer)
 
-            
-            # with tf_logging.DynamicLoggingListener(
-            #         create_lb_tf, log=LOG,
-            #         hide_inputs_outputs_of=self._exclude_result_logging_tasks):
             create_lb_tf.run()
         finally:
             self._set_vthunder_available(loadbalancer[constants.PROJECT_ID], True, ctx_flags, loadbalancer)

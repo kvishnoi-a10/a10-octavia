@@ -612,7 +612,7 @@ class ConfigureaVCSMaster(VThunderBaseTask):
 
     @axapi_client_decorator
     def execute(self, vthunder, device_id=1, device_priority=200,
-                floating_ip="192.168.0.100", floating_ip_mask="255.255.255.0"):
+                floating_ip="10.67.4.100", floating_ip_mask="255.255.255.0"):
         """Execute to configure aVCS in master vThunder"""
         try:
             configure_avcs(self.axapi_client, device_id, device_priority,
@@ -628,7 +628,7 @@ class ConfigureaVCSBackup(VThunderBaseTask):
 
     @axapi_client_decorator
     def execute(self, vthunder, device_id=2, device_priority=100,
-                floating_ip="192.168.0.100", floating_ip_mask="255.255.255.0"):
+                floating_ip="10.67.4.100", floating_ip_mask="255.255.255.0"):
         try:
             attempts = CONF.a10_controller_worker.amp_vcs_retries
             while attempts >= 0:
@@ -662,7 +662,7 @@ class ConfigureaVCSFailover(VThunderBaseTask):
 
     @axapi_client_decorator
     def execute(self, vthunder, device_id, device_priority=200,
-                floating_ip="192.168.0.100", floating_ip_mask="255.255.255.0"):
+                floating_ip="10.67.4.100", floating_ip_mask="255.255.255.0"):
         if device_id is not None:
             if device_id == 1:
                 device_priority = 200
