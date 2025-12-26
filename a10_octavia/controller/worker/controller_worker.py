@@ -1571,11 +1571,11 @@ class A10ControllerWorker(object):
             #                                      id=vthunder_id)
             if not vthunder:
                 LOG.warning("Could not fetch vThunder %s from DB, ignoring "
-                            "failover request.", vthunder[a10constants.VTHUNDER_ID])
+                            "failover request.", vthunder.vthunder_id)
                 return
 
-            LOG.info("Starting Failover process on %s", vthunder[a10constants.IP_ADDRESS])
-            LOG.info("#################vthunder is %s", vthunder)
+            LOG.info("Starting Failover process on %s", vthunder.ip_address)
+
             store = {a10constants.VTHUNDER: vthunder,
                      a10constants.FAILOVER_VTHUNDER: vthunder}
             failover_tf = None
@@ -1649,7 +1649,6 @@ class A10ControllerWorker(object):
 
         for vthunder in thunders:
             delete_compute = False
-            LOG.info("############vthunder is %s", vthunder)
             if vthunder.status == 'DELETED' and vthunder.compute_id is not None:
                 delete_compute = self._vthunder_repo.get_delete_compute_flag(db_apis.get_session(),
                                                                              vthunder.compute_id)
@@ -1668,7 +1667,6 @@ class A10ControllerWorker(object):
         """
         store = {}
         for vthunder in thunders:
-            LOG.info("#############vthunder is %s", vthunder)
             try:
                 reload_check_tf = flow_utils.get_reload_check_flow(vthunder, store)
                 reload_check_tf.run()

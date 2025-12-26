@@ -60,7 +60,7 @@ class SpareAmphora(object):
         if diff_count > 0:
             LOG.info("Initiating creation of %d spare amphora.", diff_count)
 
-            #Call Amphora Create Flow diff_count times
+            # Call Amphora Create Flow diff_count times
             with futures.ThreadPoolExecutor(
                     max_workers=CONF.a10_house_keeping.spare_amphora_pool_size
             ) as executor:
