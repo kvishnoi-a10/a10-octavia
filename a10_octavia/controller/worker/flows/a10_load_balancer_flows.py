@@ -346,6 +346,7 @@ class LoadBalancerFlows(object):
                     provides=a10constants.IPV6_ADDRESS_LIST))
                 delete_LB_flow.add(vthunder_tasks.EnableInterface(
                     name=a10constants.BACKUP_ENABLE_INTERFACE,
+                    rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
                     requires=(a10constants.VTHUNDER, constants.LOADBALANCER,
                               constants.UPDATED_PORTS, a10constants.BACKUP_VTHUNDER,
                               a10constants.IPV6_ADDRESS_LIST)))
