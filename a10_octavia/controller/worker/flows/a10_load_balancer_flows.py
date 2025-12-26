@@ -953,11 +953,11 @@ class LoadBalancerFlows(object):
                 provides=a10constants.VRID_LIST))
         handle_vrid_for_lb_subflow.add(vthunder_tasks.ConfigureVRID(
             requires=a10constants.VTHUNDER))
-        if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
-            handle_vrid_for_lb_subflow.add(vthunder_tasks.GetMasterVThunder(
-                name=a10constants.GET_MASTER_VTHUNDER_FOR_VRID,
-                requires=a10constants.VTHUNDER,
-                provides=a10constants.VTHUNDER))
+        # if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
+        #     handle_vrid_for_lb_subflow.add(vthunder_tasks.GetMasterVThunder(
+        #         name=a10constants.GET_MASTER_VTHUNDER_FOR_VRID,
+        #         requires=a10constants.VTHUNDER,
+        #         provides=a10constants.VTHUNDER))
         handle_vrid_for_lb_subflow.add(
             a10_network_tasks.HandleVRIDFloatingIP(
                 requires=[

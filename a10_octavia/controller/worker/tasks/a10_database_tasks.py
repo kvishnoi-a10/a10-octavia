@@ -255,9 +255,9 @@ class GetBackupVThunderByLoadBalancer(BaseDatabaseTask):
             barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
             backup_vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                 session, loadbalancer_id)
-            LOG.info("Backup vThunder fetched is %s", backup_vthunder)
+            LOG.info("Backup vThunder fetched is %s", backup_vthunder.__dict__)
             LOG.info("Backup vthunder type is %s", type(backup_vthunder))
-            LOG.info("Primary vThunder passed is %s", vthunder)
+            LOG.info("Primary vThunder passed is %s", vthunder.__dict__)
             LOG.info("Primary vThunder type is %s", type(vthunder))
             # VCS vMaster/vBlade may switched
             if vthunder is not None and backup_vthunder:

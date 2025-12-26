@@ -334,10 +334,10 @@ class VThunderFlows(object):
             name=sf_name + '-' + a10constants.GET_SPARE_COMPUTE_FOR_PROJECT,
             requires=constants.COMPUTE_ID,
             provides=(constants.COMPUTE_ID, a10constants.SPARE_VTHUNDER)))
-        vthunder_for_amphora_subflow.add(a10_database_tasks.GetSpareVThunder(
-            name=sf_name + '-' + a10constants.GET_SPARE_VTHUNDER,
-            rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER},
-            provides=a10constants.SPARE_VTHUNDER))
+        # vthunder_for_amphora_subflow.add(a10_database_tasks.GetSpareVThunder(
+        #     name=sf_name + '-' + a10constants.GET_SPARE_VTHUNDER,
+        #     rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER},
+        #     provides=a10constants.SPARE_VTHUNDER))
         vthunder_for_amphora_subflow.add(a10_network_tasks.PlugVipNetworkOnSpare(
             name=sf_name + '-' + a10constants.PLUG_VIP_NETWORK_ON_SPARE,
             requires=(a10constants.SPARE_VTHUNDER, constants.LOADBALANCER),
