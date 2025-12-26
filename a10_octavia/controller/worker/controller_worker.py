@@ -1588,8 +1588,7 @@ class A10ControllerWorker(object):
                     db_apis.get_session(), vthunder.loadbalancer_id)
                 if health_vthunder_count > 0:
                     failover_tf = self.run_flow(
-                        flow_utils.get_failover_vcs_vthunder_flow,store,
-                        store=store)
+                        flow_utils.get_failover_vcs_vthunder_flow,store)
                 else:
                     LOG.warning("Failover for a total HA Pair failure is not supported. "
                                 "Pair will be kept in failed state.")
