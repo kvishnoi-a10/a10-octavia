@@ -1682,7 +1682,6 @@ class A10ControllerWorker(object):
                 db_apis.get_session(),
                 ip_address=ip)
             for vthunder in thunders:
-                LOG.info("#################vthunder is %s", vthunder)
                 vthunder_stats_tf = self.run_flow(flow_utils.get_listener_stats_flow,vthunder, store,store=store)
                 vthunder_stats_tf.run()
         except Exception:

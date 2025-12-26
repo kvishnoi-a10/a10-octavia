@@ -472,7 +472,6 @@ class ListenerFlows(object):
                 id=vthunder.vthunder_id,
                 flow='GetListenersStats'),
             requires=(a10constants.VTHUNDER),
-            rebind={a10constants.VTHUNDER: vthunder},
             provides=a10constants.LISTENER_STATS))
         listener_stats_flow.add(a10_database_tasks.UpdateListenersStats(
             name='{flow}-{id}'.format(

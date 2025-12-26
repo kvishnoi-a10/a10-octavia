@@ -1653,3 +1653,9 @@ class SetVThunderHostname(VThunderBaseTask):
         except acos_errors.ACOSException as e:
             LOG.error("Could not set hostname for amphora %s", amphora[constants.ID])
             raise e
+
+class ProvideAmphoraDict(VThunderBaseTask):
+    """Task to provide amphora dict"""
+
+    def execute(self, amphora):
+        return amphora.to_dict(recurse=True)

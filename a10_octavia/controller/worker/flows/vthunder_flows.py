@@ -687,6 +687,10 @@ class VThunderFlows(object):
             name=sf_name + '-' + a10constants.GET_VTHUNDER_AMPHORA,
             requires=a10constants.VTHUNDER,
             provides=constants.AMPHORA))
+        failover_flow.add(vthunder_tasks.ProvideAmphoraDict(
+            name=sf_name + '-' + a10constants.PROVIDE_AMPHORA_DICT,
+            requires=constants.AMPHORA,
+            provides=constants.AMPHORA))
         failover_flow.add(compute.ComputeDelete(
             name=sf_name + '-' + a10constants.COMPUTE_DELETE,
             requires=constants.AMPHORA))
