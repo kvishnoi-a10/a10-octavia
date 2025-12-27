@@ -73,7 +73,7 @@ class VThunderFlows(object):
             provides=a10constants.VTHUNDER))
         create_vthunder_flow.add(a10_database_tasks.GetSpareVThunder(
             name=sf_name + '-' + a10constants.GET_SPARE_VTHUNDER,
-            requires=a10constants.SPARE_VTHUNDER,
+            rebind={a10constants.SPARE_VTHUNDER: a10constants.VTHUNDER},
             inject={"flag": True},
             provides=a10constants.VTHUNDER))
         create_vthunder_flow.add(
