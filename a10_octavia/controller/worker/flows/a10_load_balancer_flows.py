@@ -219,7 +219,7 @@ class LoadBalancerFlows(object):
             requires=[constants.AMPHORA, constants.LOADBALANCER],
             provides=constants.LOADBALANCER
             ))
-            post_create_lb_flow.add(self.handle_vrid_for_loadbalancer_subflow(topology))
+            post_create_lb_flow.add(self.handle_vrid_for_loadbalancer_subflow())
 
         if mark_active:
             post_create_lb_flow.add(database_tasks.MarkLBActiveInDB(
@@ -596,7 +596,7 @@ class LoadBalancerFlows(object):
         #    requires=[constants.LOADBALANCER, constants.LISTENERS]))
         # post_create_lb_flow.add(handle_vrid_for_loadbalancer_subflow())
         if CONF.a10_global.handle_vrid:
-            update_LB_flow.add(self.handle_vrid_for_loadbalancer_subflow(topology))
+            update_LB_flow.add(self.handle_vrid_for_loadbalancer_subflow())
         update_LB_flow.add(database_tasks.GetAmphoraeFromLoadbalancer(
             requires=constants.LOADBALANCER_ID,
             provides=constants.AMPHORA))
@@ -675,7 +675,7 @@ class LoadBalancerFlows(object):
         update_LB_flow.add(network_tasks.ApplyQos(
             requires=(constants.LOADBALANCER, constants.UPDATE_DICT)))
         if CONF.a10_global.handle_vrid:
-            update_LB_flow.add(self.handle_vrid_for_loadbalancer_subflow(topology))
+            update_LB_flow.add(self.handle_vrid_for_loadbalancer_subflow())
 
         update_LB_flow.add(virtual_server_tasks.UpdateVirtualServerTask(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER,
@@ -925,14 +925,14 @@ class LoadBalancerFlows(object):
                 requires=[constants.LOADBALANCER,
                           a10constants.VTHUNDER]))
         if CONF.a10_global.handle_vrid:
-            post_create_lb_flow.add(self.handle_vrid_for_loadbalancer_subflow(topology))
+            post_create_lb_flow.add(self.handle_vrid_for_loadbalancer_subflow())
         if mark_active:
             post_create_lb_flow.add(database_tasks.MarkLBActiveInDB(
                 name=sf_name + '-' + constants.MARK_LB_ACTIVE_INDB,
                 requires=constants.LOADBALANCER))
         return post_create_lb_flow
 
-    def handle_vrid_for_loadbalancer_subflow(self, topology):
+    def handle_vrid_for_loadbalancer_subflow(self):
         handle_vrid_for_lb_subflow = linear_flow.Flow(
             a10constants.HANDLE_VRID_LOADBALANCER_SUBFLOW)
         handle_vrid_for_lb_subflow.add(a10_network_tasks.GetLBResourceSubnet(
@@ -954,11 +954,6 @@ class LoadBalancerFlows(object):
                 provides=a10constants.VRID_LIST))
         handle_vrid_for_lb_subflow.add(vthunder_tasks.ConfigureVRID(
             requires=a10constants.VTHUNDER))
-        if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
-            handle_vrid_for_lb_subflow.add(vthunder_tasks.GetMasterVThunder(
-                name=a10constants.GET_MASTER_VTHUNDER_FOR_VRID,
-                requires=a10constants.VTHUNDER,
-                provides=a10constants.VTHUNDER))
         handle_vrid_for_lb_subflow.add(
             a10_network_tasks.HandleVRIDFloatingIP(
                 requires=[

@@ -254,7 +254,6 @@ class GetBackupVThunderByLoadBalancer(BaseDatabaseTask):
             barbican_client = BarbicanACLAuth().get_barbican_client(loadbalancer.get(constants.PROJECT_ID))
             backup_vthunder = self.vthunder_repo.get_backup_vthunder_from_lb(
                 session, loadbalancer_id)
-
             # VCS vMaster/vBlade may switched
             if vthunder is not None and backup_vthunder:
                 if backup_vthunder.ip_address == vthunder.ip_address:

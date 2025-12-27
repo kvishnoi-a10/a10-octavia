@@ -271,6 +271,7 @@ GET_VCS_DEVICE_ID = 'get-vcs-device-id'
 POST_FAILOVER_DB_UPDATE = 'post-failover-db-update'
 MARK_LB_LIST_ERROR_ON_REVERT = 'mark-lb-list-error-on-revert'
 GET_BACKUP_VTHUNDER_FROM_DB = 'get-backup-vthunder-from-db'
+PROVIDE_AMPHORA_DICT = 'provide-amphora-dict'
 
 FULLY_POPULATED_LISTENER_CREATE = 'fully-populated-listener-create'
 FULLY_POPULATED_ERROR_ON_REVERT = '-error-on-revert'

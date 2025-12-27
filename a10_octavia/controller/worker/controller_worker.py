@@ -546,16 +546,10 @@ class A10ControllerWorker(object):
                     (a10constants.COMPUTE_BUSY, busy),
                     (a10constants.VTHUNDER_CONFIG, None),
                     (a10constants.USE_DEVICE_FLAVOR, False)])
-                #create_lb_tf = self.run_flow(create_lb_flow, store=store)
-                #LOG.info("Project Id is %s", lb.project_id)
                 create_lb_tf = self.run_flow(flow_utils.get_create_load_balancer_flow, loadbalancer, topology, project_id=loadbalancer[constants.PROJECT_ID], listeners=lb.get(constants.LISTENERS), pools=lb.get(constants.POOLS), store=store)
                 self._register_flow_notify_handler(create_lb_tf, loadbalancer[constants.PROJECT_ID], True,
                                                 busy, ctx_flags, loadbalancer)
 
-            
-            # with tf_logging.DynamicLoggingListener(
-            #         create_lb_tf, log=LOG,
-            #         hide_inputs_outputs_of=self._exclude_result_logging_tasks):
             create_lb_tf.run()
         finally:
             self._set_vthunder_available(loadbalancer[constants.PROJECT_ID], True, ctx_flags, loadbalancer)
@@ -1587,25 +1581,23 @@ class A10ControllerWorker(object):
             failover_tf = None
             if vthunder.topology == a10constants.TOPOLOGY_SPARE:
                 failover_tf = self.run_flow(
-                    flow_utils.get_failover_spare_vthunder_flow(),
+                    flow_utils.get_failover_spare_vthunder_flow,
                     store=store)
             elif vthunder.topology == constants.TOPOLOGY_ACTIVE_STANDBY:
                 health_vthunder_count = self._vthunder_repo.get_health_vthunder_count_for_lb(
                     db_apis.get_session(), vthunder.loadbalancer_id)
                 if health_vthunder_count > 0:
                     failover_tf = self.run_flow(
-                        flow_utils.get_failover_vcs_vthunder_flow(),
-                        store=store)
+                        flow_utils.get_failover_vcs_vthunder_flow,store=store)
                 else:
                     LOG.warning("Failover for a total HA Pair failure is not supported. "
                                 "Pair will be kept in failed state.")
                     failover_tf = self.run_flow(
-                        flow_utils.get_failover_restore_vthunder_flow(),
+                        flow_utils.get_failover_restore_vthunder_flow,
                         store=store)
 
             if failover_tf:
-                with tf_logging.DynamicLoggingListener(failover_tf, log=LOG):
-                    failover_tf.run()
+                failover_tf.run()
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -1660,11 +1652,8 @@ class A10ControllerWorker(object):
                 delete_compute = self._vthunder_repo.get_delete_compute_flag(db_apis.get_session(),
                                                                              vthunder.compute_id)
             try:
-                flow = flow_utils.get_write_memory_flow(vthunder, store, delete_compute)
-                write_mem_tf = self.tf_engine.taskflow_load(flow, store=store)
-
-                with tf_logging.DynamicLoggingListener(write_mem_tf, log=LOG):
-                    write_mem_tf.run()
+                write_mem_tf = self.run_flow(flow_utils.get_write_memory_flow,vthunder, store, delete_compute,store=store)
+                write_mem_tf.run()
             except Exception:
                 # continue on other thunders (assume exception is logged)
                 pass
@@ -1678,8 +1667,7 @@ class A10ControllerWorker(object):
         store = {}
         for vthunder in thunders:
             try:
-                flow = flow_utils.get_reload_check_flow(vthunder, store)
-                reload_check_tf = self.tf_engine.taskflow_load(flow,store=store)
+                reload_check_tf = self.run_flow(flow_utils.get_reload_check_flow,vthunder, store,store=store)
                 reload_check_tf.run()
             except Exception:
                 # continue on other thunders (assume exception is logged)
@@ -1694,8 +1682,7 @@ class A10ControllerWorker(object):
                 db_apis.get_session(),
                 ip_address=ip)
             for vthunder in thunders:
-                flow = flow_utils.get_listener_stats_flow(vthunder, store)
-                vthunder_stats_tf = self.tf_engine.taskflow_load(flow,store=store)
+                vthunder_stats_tf = self.run_flow(flow_utils.get_listener_stats_flow,vthunder, store,store=store)
                 vthunder_stats_tf.run()
         except Exception:
             # continue on other thunders (assume exception is logged)
