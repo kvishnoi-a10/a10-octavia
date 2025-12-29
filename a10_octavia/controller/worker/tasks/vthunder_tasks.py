@@ -36,6 +36,7 @@ from octavia.common import utils
 from octavia.db import api as db_apis
 from octavia.db import repositories as repo
 from octavia.certificates.common.auth.barbican_acl import BarbicanACLAuth
+from octavia_lib.api.drivers import exceptions as octavia_exceptions
 
 from a10_octavia.controller.worker.tasks import utils as a10_task_utils
 from a10_octavia.common import a10constants
@@ -612,9 +613,15 @@ class ConfigureaVCSMaster(VThunderBaseTask):
 
     @axapi_client_decorator
     def execute(self, vthunder, device_id=1, device_priority=200,
-                floating_ip="10.67.4.100", floating_ip_mask="255.255.255.0"):
+                floating_ip_mask="255.255.255.0"):
         """Execute to configure aVCS in master vThunder"""
         try:
+            floating_ip = CONF.a10_global.vcs_floating_ip
+            if not floating_ip:
+                LOG.error("vcs_floating_ip is not configured, Failed to configure master vThunder aVCS %s", vthunder.id)
+                message = "vcs_floating_ip must be provided under [a10_global]"
+                raise octavia_exceptions.DriverError(user_fault_string=message,
+                                            operator_fault_string=message)
             configure_avcs(self.axapi_client, device_id, device_priority,
                            floating_ip, floating_ip_mask)
             LOG.debug("Configured the master vThunder for aVCS: %s", vthunder.id)
@@ -628,12 +635,18 @@ class ConfigureaVCSBackup(VThunderBaseTask):
 
     @axapi_client_decorator
     def execute(self, vthunder, device_id=2, device_priority=100,
-                floating_ip="10.67.4.100", floating_ip_mask="255.255.255.0"):
+                floating_ip_mask="255.255.255.0"):
         try:
             attempts = CONF.a10_controller_worker.amp_vcs_retries
             while attempts >= 0:
                 try:
                     attempts = attempts - 1
+                    floating_ip = CONF.a10_global.vcs_floating_ip
+                    if not floating_ip:
+                        LOG.error("vcs_floating_ip is not configured, Failed to configure backup vThunder aVCS %s", vthunder.id)
+                        message = "vcs_floating_ip must be provided under [a10_global]"
+                        raise octavia_exceptions.DriverError(user_fault_string=message,
+                                                    operator_fault_string=message)
                     configure_avcs(self.axapi_client, device_id, device_priority,
                                    floating_ip, floating_ip_mask)
                     attempts = 0
@@ -662,7 +675,7 @@ class ConfigureaVCSFailover(VThunderBaseTask):
 
     @axapi_client_decorator
     def execute(self, vthunder, device_id, device_priority=200,
-                floating_ip="10.67.4.100", floating_ip_mask="255.255.255.0"):
+                floating_ip_mask="255.255.255.0"):
         if device_id is not None:
             if device_id == 1:
                 device_priority = 200
@@ -670,6 +683,12 @@ class ConfigureaVCSFailover(VThunderBaseTask):
                 device_priority = 100
 
             try:
+                floating_ip = CONF.a10_global.vcs_floating_ip
+                if not floating_ip:
+                    LOG.error("vcs_floating_ip is not configured, Failed to configure failover vThunder aVCS")
+                    message = "vcs_floating_ip must be provided under [a10_global]"
+                    raise octavia_exceptions.DriverError(user_fault_string=message,
+                                            operator_fault_string=message)
                 configure_avcs(self.axapi_client, device_id, device_priority,
                                floating_ip, floating_ip_mask)
             except (acos_errors.ACOSException, req_exceptions.ConnectionError) as e:

@@ -215,6 +215,14 @@ class GetSpareVThunder(BaseDatabaseTask):
                 
             return vthunder
 
+class PopulateVThunderCredentials(BaseDatabaseTask):
+    """populate vthunder with password"""
+
+    def execute(self, vthunder):
+        barbican_client = BarbicanACLAuth().get_barbican_client()
+        password = a10_task_utils.get_password(barbican_client, vthunder.project_id)
+        vthunder.password = a10_task_utils.decode_base64(password)
+        return vthunder
 
 class GetVThunderByLoadBalancer(BaseDatabaseTask):
     """Get VThunder from db using LoadBalancer"""
