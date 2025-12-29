@@ -598,10 +598,13 @@ class VThunderFlows(object):
         sf_name = 'a10-house-keeper' + '-' + a10constants.WRITE_MEMORY_THUNDER_FLOW
         write_memory_flow = linear_flow.Flow(sf_name)
         vthunder_store = {}
-        vthunder_store[vthunder.vthunder_id] = vthunder
+        vthunder_store[vthunder] = vthunder
+        write_memory_flow.add(a10_database_tasks.PopulateVThunderCredentials(
+            requires=a10constants.VTHUNDER,
+            rebind={a10constants.VTHUNDER: vthunder},
+            provides=a10constants.VTHUNDER))
         write_memory_flow.add(a10_database_tasks.GetActiveLoadBalancersByThunder(
             requires=a10constants.VTHUNDER,
-            rebind={a10constants.VTHUNDER: vthunder.vthunder_id},
             name='{flow}-{id}'.format(
                 id=vthunder.vthunder_id,
                 flow='GetActiveLoadBalancersByThunder'),
@@ -615,7 +618,6 @@ class VThunderFlows(object):
             write_memory_flow.add(vthunder_tasks.WriteMemoryHouseKeeper(
                 requires=(a10constants.VTHUNDER, a10constants.LOADBALANCERS_LIST,
                           a10constants.WRITE_MEM_SHARED_PART),
-                rebind={a10constants.VTHUNDER: vthunder.vthunder_id},
                 name='{flow}-{partition}-{id}'.format(
                     id=vthunder.vthunder_id,
                     flow='WriteMemory-' + a10constants.WRITE_MEMORY_THUNDER_FLOW,
@@ -623,7 +625,6 @@ class VThunderFlows(object):
                 provides=a10constants.WRITE_MEM_SHARED))
             write_memory_flow.add(vthunder_tasks.WriteMemoryHouseKeeper(
                 requires=(a10constants.VTHUNDER, a10constants.LOADBALANCERS_LIST),
-                rebind={a10constants.VTHUNDER: vthunder.vthunder_id},
                 name='{flow}-{partition}-{id}'.format(
                     id=vthunder.vthunder_id,
                     flow='WriteMemory-' + a10constants.WRITE_MEMORY_THUNDER_FLOW,
@@ -633,7 +634,6 @@ class VThunderFlows(object):
                 requires=(a10constants.VTHUNDER,
                           a10constants.WRITE_MEM_SHARED,
                           a10constants.WRITE_MEM_PRIVATE),
-                rebind={a10constants.VTHUNDER: vthunder.vthunder_id},
                 name='{flow}-{id}'.format(
                     id=vthunder.vthunder_id,
                     flow='SetThunderLastWriteMem')))
@@ -641,7 +641,6 @@ class VThunderFlows(object):
             write_memory_flow.add(a10_database_tasks.SetThunderLastWriteMem(
                 requires=(a10constants.VTHUNDER),
                 inject={a10constants.WRITE_MEM_SHARED: True, a10constants.WRITE_MEM_PRIVATE: True},
-                rebind={a10constants.VTHUNDER: vthunder.vthunder_id},
                 name='{flow}-{id}'.format(
                     id=vthunder.vthunder_id,
                     flow='SetThunderLastWriteMem')))
