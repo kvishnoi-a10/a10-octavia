@@ -660,20 +660,22 @@ class VThunderFlows(object):
 
         reload_check_flow = linear_flow.Flow(sf_name)
         vthunder_store = {}
-        vthunder_store[vthunder.vthunder_id] = vthunder
+        vthunder_store[vthunder] = vthunder
+        reload_check_flow.add(a10_database_tasks.PopulateVThunderCredentials(
+            requires=a10constants.VTHUNDER,
+            rebind={a10constants.VTHUNDER: vthunder},
+            provides=a10constants.VTHUNDER))
         reload_check_flow.add(a10_database_tasks.GetActiveLoadBalancersByThunder(
             requires=a10constants.VTHUNDER,
-            rebind={a10constants.VTHUNDER: vthunder.vthunder_id},
             name='{flow}-{id}'.format(
                 id=vthunder.vthunder_id,
                 flow='GetActiveLoadBalancersByThunder'),
-            provides=a10constants.LOADBALANCERS_LIST))
+            provides=a10constants.LOADBALANCERS_LIST))      
         reload_check_flow.add(vthunder_tasks.WriteMemoryThunderStatusCheck(
             name='{flow}-{id}'.format(
                 id=vthunder.vthunder_id,
                 flow='WriteMemoryThunderStatusCheck'),
-            requires=(a10constants.VTHUNDER, a10constants.LOADBALANCERS_LIST),
-            rebind={a10constants.VTHUNDER: vthunder.vthunder_id}))
+            requires=(a10constants.VTHUNDER, a10constants.LOADBALANCERS_LIST)))
 
         store.update(vthunder_store)
         return reload_check_flow
