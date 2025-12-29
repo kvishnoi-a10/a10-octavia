@@ -713,7 +713,7 @@ class PlugVIPAmphora(BaseNetworkTask):
                 'Failed to unplug AAP port for load balancer: %s. '
                 'Resources may still be in use for VRRP port: %s. '
                 'Due to error: %s',
-                lb_id, result[constants.VRRP_PORT_ID], str(e)
+                lb_id, result, str(e)
             )
 
 
