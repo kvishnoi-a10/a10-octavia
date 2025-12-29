@@ -40,7 +40,7 @@ A10_GLOBAL_OPTS = [
                help=_('VRID value')),
     cfg.StrOpt('vrid_floating_ip', default=None,
                help=_('Enable VRID floating IP feature')),
-    cfg.StrOpt('vcs_floating_ip', default="10.67.4.100",
+    cfg.StrOpt('vcs_floating_ip', default=None,
                help=_('Provide VCS floating IP for HA Pair')),
     cfg.StrOpt('network_type',
                default=a10constants.FLAT,
