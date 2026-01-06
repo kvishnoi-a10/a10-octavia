@@ -707,7 +707,7 @@ class VThunderFlows(object):
         get_spare_flow = linear_flow.Flow(sf_name)
         get_spare_flow.add(a10_database_tasks.GetSpareVThunder(
             name=sf_name + '-' + a10constants.GET_SPARE_VTHUNDER,
-            rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER},
+            requires=a10constants.SPARE_VTHUNDER,
             provides=a10constants.SPARE_VTHUNDER))
         get_spare_flow.add(a10_network_tasks.PlugNetworksByID(
             name=sf_name + '-' + a10constants.PLUG_NETWORK_BY_IDS,
@@ -765,7 +765,7 @@ class VThunderFlows(object):
             provides=a10constants.SPARE_VTHUNDER))
         create_amp_flow.add(a10_database_tasks.GetSpareVThunder(
             name=sf_name + '-' + a10constants.GET_SPARE_VTHUNDER,
-            rebind={a10constants.VTHUNDER: a10constants.SPARE_VTHUNDER},
+            requires=a10constants.SPARE_VTHUNDER,
             inject={"flag": True},
             provides=a10constants.SPARE_VTHUNDER))
         create_amp_flow.add(
