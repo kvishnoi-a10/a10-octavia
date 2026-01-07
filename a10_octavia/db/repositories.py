@@ -264,7 +264,8 @@ class VThunderRepository(BaseRepository):
             self.model_class.project_id == project_id).filter(
             and_(self.model_class.status == "ACTIVE",
                  or_(self.model_class.role == "STANDALONE",
-                     self.model_class.role == "MASTER"))).first()
+                     self.model_class.role == "MASTER",
+                     self.model_class.role == "BACKUP"))).first()
 
         if not model:
             return None

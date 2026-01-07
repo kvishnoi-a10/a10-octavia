@@ -300,7 +300,7 @@ class VThunderFlows(object):
         else:
             create_amp_for_lb_subflow.add(
                 vthunder_tasks.UpdateAcosVersionInVthunderEntry(
-                    name=sf_name + '-' + a10constants.UPDATE_ACOS_VERSION_FOR_BACKUP_VTHUNDER,
+                    name=sf_name + '-' + a10constants.UPDATE_ACOS_VERSION_IN_VTHUNDER_ENTRY,
                     requires=(a10constants.VTHUNDER)))
 
         return create_amp_for_lb_subflow
@@ -423,7 +423,7 @@ class VThunderFlows(object):
                 requires=constants.AMPHORA))
             vthunder_for_amphora_subflow.add(
                 vthunder_tasks.UpdateAcosVersionInVthunderEntry(
-                    name=sf_name + '-' + a10constants.UPDATE_ACOS_VERSION_FOR_BACKUP_VTHUNDER,
+                    name=sf_name + '-' + a10constants.UPDATE_ACOS_VERSION_IN_VTHUNDER_ENTRY,
                     requires=(a10constants.VTHUNDER)))
         elif role == constants.ROLE_BACKUP:
             vthunder_for_amphora_subflow.add(database_tasks.MarkAmphoraBackupInDB(
@@ -445,7 +445,7 @@ class VThunderFlows(object):
                     requires=constants.AMPHORA))
             vthunder_for_amphora_subflow.add(
                 vthunder_tasks.UpdateAcosVersionInVthunderEntry(
-                    name=sf_name + '-' + a10constants.UPDATE_ACOS_VERSION_FOR_BACKUP_VTHUNDER,
+                    name=sf_name + '-' + a10constants.UPDATE_ACOS_VERSION_IN_VTHUNDER_ENTRY,
                     requires=(a10constants.VTHUNDER)))
 
         # If spare vThunder is used, remove spare vThunder the database
