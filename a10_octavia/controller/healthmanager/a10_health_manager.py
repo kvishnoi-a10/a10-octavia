@@ -54,10 +54,8 @@ class A10HealthManager(health_manager.HealthManager):
             try:
                 lock_session = db_apis.get_session()
                 lock_session.begin()
-                failover_wait_time = datetime.datetime.utcnow() - datetime.timedelta(
-                    seconds=CONF.a10_health_manager.heartbeat_timeout)
-                initial_setup_wait_time = datetime.datetime.utcnow() - datetime.timedelta(
-                    seconds=CONF.a10_health_manager.failover_timeout)
+                failover_wait_time = datetime.datetime.utcnow() - datetime.timedelta(seconds=CONF.a10_health_manager.heartbeat_timeout)
+                initial_setup_wait_time = datetime.datetime.utcnow() - datetime.timedelta(seconds=CONF.a10_health_manager.failover_timeout)
                 vthunder = self.vthunder_repo.get_stale_vthunders(
                     lock_session, initial_setup_wait_time, failover_wait_time)
 
@@ -104,7 +102,8 @@ class A10HealthManager(health_manager.HealthManager):
 
             if vthunder is None:
                 db_session = db_apis.get_session()
-                self.vthunder_repo.unset_vthunder_busy_health_state(db_session)
+                LOG.debug("******unset thunder health state******")
+                # self.vthunder_repo.unset_vthunder_busy_health_state(db_session)
                 break
 
             LOG.info("Stale vThunder's id is: %s", vthunder.vthunder_id)

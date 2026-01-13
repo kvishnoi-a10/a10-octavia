@@ -433,6 +433,8 @@ class LoadBalancerRepository(repo.LoadBalancerRepository):
         return lb_list
 
     def get_lb_count_by_subnet(self, session, project_ids, subnet_id):
+        if not project_ids:
+            return 0
         return session.query(self.model_class).join(base_models.Vip).filter(
             and_(self.model_class.project_id.in_(project_ids),
                  base_models.Vip.subnet_id == subnet_id,
@@ -476,10 +478,9 @@ class LoadBalancerRepository(repo.LoadBalancerRepository):
             or_(self.model_class.provisioning_status == "ACTIVE",
                 self.model_class.provisioning_status == "PENDING_UPDATE",
                 self.model_class.provisioning_status == "PENDING_CREATE"))
-
         model_list = query.all()
         for data in model_list:
-            lb_list.append(data.to_data_model())
+            lb_list.append(data.to_data_model().to_dict())
         return lb_list
 
     def get_all_other_lbs_in_project(self, session, project_id, id):
@@ -634,6 +635,8 @@ class MemberRepository(repo.MemberRepository):
                      self.model_class.provisioning_status == consts.ACTIVE))).count()
 
     def get_pool_count_subnet(self, session, project_ids, subnet_id):
+        if not project_ids:
+            return 0
         return session.query(self.model_class.pool_id.distinct()).filter(
             self.model_class.project_id.in_(project_ids)).filter(
             and_(self.model_class.subnet_id == subnet_id,
@@ -641,11 +644,13 @@ class MemberRepository(repo.MemberRepository):
                      self.model_class.provisioning_status == consts.ACTIVE))).count()
 
     def get_pool_count_subnet_on_thunder(self, session, pool_ids, subnet_id):
+        if not pool_ids:
+            return 0
         return session.query(self.model_class.pool_id.distinct()).filter(
             self.model_class.pool_id.in_(pool_ids)).filter(
             and_(self.model_class.subnet_id == subnet_id,
-                 or_(self.model_class.provisioning_status == consts.PENDING_DELETE,
-                     self.model_class.provisioning_status == consts.ACTIVE))).count()
+                or_(self.model_class.provisioning_status == consts.PENDING_DELETE,
+                    self.model_class.provisioning_status == consts.ACTIVE))).count()
 
     def get_members_on_thunder_by_subnet(self, session, ip_address, subnet_id):
         model = session.query(self.model_class).filter(

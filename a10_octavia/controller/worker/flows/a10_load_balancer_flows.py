@@ -84,7 +84,7 @@ class LoadBalancerFlows(object):
             provides=constants.LOADBALANCER))
 
         lb_create_flow.add(a10_database_tasks.CheckExistingVthunderTopology(
-            requires=constants.LOADBALANCER,
+            requires=constants.PROJECT_ID,
             inject={"topology": topology}))
 
         # Attaching vThunder to LB in database
@@ -104,7 +104,8 @@ class LoadBalancerFlows(object):
         vthunder = self._vthunder_repo.get_vthunder_by_project_id(db_apis.get_session(),
                                                                   project_id)
         lb_create_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         lb_create_flow.add(
             self.get_post_lb_vthunder_association_flow(
@@ -213,6 +214,11 @@ class LoadBalancerFlows(object):
             requires=[constants.LOADBALANCER, constants.UPDATE_DICT]))
 
         if CONF.a10_global.handle_vrid:
+            post_create_lb_flow.add(a10_database_tasks.PopulateLoadbalancer(
+            name=a10constants.POPULATE_LB,
+            requires=[constants.AMPHORA, constants.LOADBALANCER],
+            provides=constants.LOADBALANCER
+            ))
             post_create_lb_flow.add(self.handle_vrid_for_loadbalancer_subflow())
 
         if mark_active:
@@ -221,9 +227,8 @@ class LoadBalancerFlows(object):
                 requires=constants.LOADBALANCER))
         return post_create_lb_flow
 
-    def get_delete_load_balancer_flow(self, lb, deleteCompute, cascade):
+    def get_delete_load_balancer_flow(self, lb, listeners, deleteCompute, cascade):
         """Flow to delete load balancer"""
-
         store = {}
         topology = CONF.a10_controller_worker.loadbalancer_topology
         delete_LB_flow = linear_flow.Flow(constants.DELETE_LOADBALANCER_FLOW)
@@ -235,7 +240,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
             requires=(constants.LOADBALANCER, a10constants.MASTER_AMPHORA_STATUS),
             provides=a10constants.VTHUNDER))
-        if lb.topology == constants.TOPOLOGY_ACTIVE_STANDBY:
+        if lb.get('topology') == constants.TOPOLOGY_ACTIVE_STANDBY:
             delete_LB_flow.add(a10_compute_tasks.CheckAmphoraStatus(
                 name="check-master-amphora-status",
                 requires=a10constants.VTHUNDER,
@@ -256,7 +261,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(database_tasks.MarkLBAmphoraeHealthBusy(
             requires=constants.LOADBALANCER))
         if cascade:
-            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb)
+            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb, listeners)
             delete_LB_flow.add(pools_listeners_delete)
         delete_LB_flow.add(database_tasks.GetAmphoraeFromLoadbalancer(
             requires=constants.LOADBALANCER_ID,
@@ -264,7 +269,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(a10_database_tasks.GetLoadBalancerListForDeletion(
             requires=(a10constants.VTHUNDER, constants.LOADBALANCER),
             provides=a10constants.LOADBALANCERS_LIST))
-        if lb.topology == "ACTIVE_STANDBY":
+        if lb.get('topology') == "ACTIVE_STANDBY":
             delete_LB_flow.add(a10_database_tasks.GetBackupVThunderByLoadBalancer(
                 requires=(constants.LOADBALANCER, a10constants.VTHUNDER),
                 provides=a10constants.BACKUP_VTHUNDER))
@@ -286,8 +291,8 @@ class LoadBalancerFlows(object):
                           a10constants.MEMBER_LIST),
                 provides=constants.DELTAS))
             delete_LB_flow.add(a10_network_tasks.HandleNetworkDeltas(
-                requires=constants.DELTAS, provides=constants.ADDED_PORTS))
-            if lb.topology == "ACTIVE_STANDBY":
+                requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
+            if lb.get('topology') == "ACTIVE_STANDBY":
                 delete_LB_flow.add(vthunder_tasks.VCSSyncWait(
                     name="wait-vcs-ready-before-master-reload",
                     requires=(a10constants.VTHUNDER,
@@ -295,13 +300,13 @@ class LoadBalancerFlows(object):
                               a10constants.BACKUP_AMPHORA_STATUS)))
             delete_LB_flow.add(vthunder_tasks.AmphoraePostNetworkUnplug(
                 name=a10constants.AMPHORA_POST_NETWORK_UNPLUG,
-                requires=(constants.LOADBALANCER, constants.ADDED_PORTS, a10constants.VTHUNDER)))
+                requires=(constants.LOADBALANCER, constants.UPDATED_PORTS, a10constants.VTHUNDER)))
             delete_LB_flow.add(
                 vthunder_tasks.VThunderComputeConnectivityWait(
                     name=a10constants.VTHUNDER_CONNECTIVITY_WAIT,
                     requires=(a10constants.VTHUNDER, constants.AMPHORA,
                               a10constants.MASTER_AMPHORA_STATUS)))
-            if lb.topology == "ACTIVE_STANDBY":
+            if lb.get('topology') == "ACTIVE_STANDBY":
                 delete_LB_flow.add(
                     vthunder_tasks.VThunderComputeConnectivityWait(
                         name=a10constants.BACKUP_CONNECTIVITY_WAIT,
@@ -330,7 +335,7 @@ class LoadBalancerFlows(object):
             delete_LB_flow.add(vthunder_tasks.EnableInterface(
                 name=a10constants.ENABLE_VTHUNDER_INTERFACE,
                 requires=(a10constants.VTHUNDER, constants.LOADBALANCER,
-                          constants.ADDED_PORTS,
+                          constants.UPDATED_PORTS,
                           a10constants.IPV6_ADDRESS_LIST)))
             if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
                 delete_LB_flow.add(vthunder_tasks.GetValidIPv6Address(
@@ -342,7 +347,7 @@ class LoadBalancerFlows(object):
                 delete_LB_flow.add(vthunder_tasks.EnableInterface(
                     name=a10constants.BACKUP_ENABLE_INTERFACE,
                     requires=(a10constants.VTHUNDER, constants.LOADBALANCER,
-                              constants.ADDED_PORTS, a10constants.BACKUP_VTHUNDER,
+                              constants.UPDATED_PORTS, a10constants.BACKUP_VTHUNDER,
                               a10constants.IPV6_ADDRESS_LIST)))
         delete_LB_flow.add(
             a10_database_tasks.GetChildProjectsOfParentPartition(
@@ -361,7 +366,8 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(virtual_server_tasks.DeleteVirtualServerTask(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER)))
         delete_LB_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         delete_LB_flow.add(a10_database_tasks.CountLoadbalancersWithFlavor(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER),
@@ -378,7 +384,7 @@ class LoadBalancerFlows(object):
             delete_LB_flow.add(glm_tasks.RevokeFlexpoolLicense(
                 name=a10constants.REVOKE_ACTIVE_VTHUNDER_LICENSE,
                 requires=a10constants.VTHUNDER))
-            if lb.topology == "ACTIVE_STANDBY":
+            if lb.get('topology') == "ACTIVE_STANDBY":
                 delete_LB_flow.add(glm_tasks.RevokeFlexpoolLicense(
                     name=a10constants.REVOKE_BACKUP_VTHUNDER_LICENSE,
                     rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER}))
@@ -402,7 +408,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(a10_database_tasks.SetThunderUpdatedAt(
             name=a10constants.SET_THUNDER_UPDATE_AT,
             requires=a10constants.VTHUNDER))
-        if lb.topology == "ACTIVE_STANDBY":
+        if lb.get('topology') == "ACTIVE_STANDBY":
             delete_LB_flow.add(a10_database_tasks.MarkVThunderStatusInDB(
                 name=a10constants.MARK_VTHUNDER_BACKUP_DELETED_IN_DB,
                 rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
@@ -442,7 +448,7 @@ class LoadBalancerFlows(object):
                           a10constants.MEMBER_LIST),
                 provides=constants.DELTAS))
             new_LB_net_subflow.add(a10_network_tasks.HandleNetworkDeltas(
-                requires=constants.DELTAS, provides=constants.ADDED_PORTS))
+                requires=(constants.DELTAS, constants.LOADBALANCER), provides=constants.UPDATED_PORTS))
             if topology == constants.TOPOLOGY_ACTIVE_STANDBY:
                 new_LB_net_subflow.add(vthunder_tasks.VCSSyncWait(
                     name="wait-vcs-ready-before-master-reload",
@@ -454,8 +460,8 @@ class LoadBalancerFlows(object):
             # managing interface additions here
             new_LB_net_subflow.add(vthunder_tasks.AmphoraePostVIPPlug(
                 name=a10constants.AMPHORAE_POST_VIP_PLUG,
-                requires=(constants.LOADBALANCER, a10constants.VTHUNDER,
-                          constants.ADDED_PORTS)))
+                requires=(constants.AMPHORA, a10constants.VTHUNDER,
+                          constants.UPDATED_PORTS)))
             new_LB_net_subflow.add(
                 vthunder_tasks.VThunderComputeConnectivityWait(
                     name=a10constants.VTHUNDER_CONNECTIVITY_WAIT,
@@ -487,7 +493,7 @@ class LoadBalancerFlows(object):
             new_LB_net_subflow.add(vthunder_tasks.EnableInterface(
                 name=a10constants.ENABLE_VTHUNDER_INTERFACE,
                 requires=(a10constants.VTHUNDER, constants.LOADBALANCER,
-                          constants.ADDED_PORTS,
+                          constants.UPDATED_PORTS,
                           a10constants.IPV6_ADDRESS_LIST)))
             new_LB_net_subflow.add(a10_database_tasks.GetBackupVThunderByLoadBalancer(
                 name=a10constants.GET_BACKUP_VTHUNDER_FROM_DB,
@@ -503,7 +509,7 @@ class LoadBalancerFlows(object):
                 new_LB_net_subflow.add(vthunder_tasks.EnableInterface(
                     name=a10constants.BACKUP_ENABLE_INTERFACE,
                     requires=(a10constants.VTHUNDER, constants.LOADBALANCER,
-                              constants.ADDED_PORTS,
+                              constants.UPDATED_PORTS,
                               a10constants.BACKUP_VTHUNDER, a10constants.IPV6_ADDRESS_LIST)))
         else:
             new_LB_net_subflow.add(vthunder_tasks.VThunderComputeConnectivityWait(
@@ -516,8 +522,8 @@ class LoadBalancerFlows(object):
             provides=a10constants.IPV6_ADDRESS_LIST))
         new_LB_net_subflow.add(vthunder_tasks.EnableInterface(
             name=a10constants.ENABLE_MASTER_VTHUNDER_INTERFACE,
-            inject={constants.ADDED_PORTS: {}},
-            requires=(a10constants.VTHUNDER, constants.LOADBALANCER, constants.ADDED_PORTS,
+            inject={constants.UPDATED_PORTS: {}},
+            requires=(a10constants.VTHUNDER, constants.LOADBALANCER, constants.UPDATED_PORTS,
                       a10constants.IPV6_ADDRESS_LIST)))
         new_LB_net_subflow.add(a10_database_tasks.MarkVThunderStatusInDB(
             name=a10constants.MARK_VTHUNDER_MASTER_ACTIVE_IN_DB,
@@ -538,15 +544,18 @@ class LoadBalancerFlows(object):
             new_LB_net_subflow.add(vthunder_tasks.EnableInterface(
                 name=a10constants.ENABLE_BACKUP_VTHUNDER_INTERFACE,
                 rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
-                inject={constants.ADDED_PORTS: {}},
-                requires=(constants.LOADBALANCER, constants.ADDED_PORTS,
+                inject={constants.UPDATED_PORTS: {}},
+                requires=(constants.LOADBALANCER, constants.UPDATED_PORTS,
                           a10constants.IPV6_ADDRESS_LIST)))
             new_LB_net_subflow.add(a10_database_tasks.MarkVThunderStatusInDB(
                 name=a10constants.MARK_VTHUNDER_BACKUP_ACTIVE_IN_DB,
                 rebind={a10constants.VTHUNDER: a10constants.BACKUP_VTHUNDER},
                 inject={a10constants.STATUS: constants.ACTIVE}))
-        new_LB_net_subflow.add(a10_network_tasks.PlugVIP(
-            requires=constants.LOADBALANCER,
+        new_LB_net_subflow.add(a10_network_tasks.UpdateVIPSecurityGroup(
+            requires=constants.LOADBALANCER))
+        new_LB_net_subflow.add(a10_network_tasks.PlugVIPAmphora(
+            requires=(constants.LOADBALANCER, constants.AMPHORA,
+                      constants.SUBNET),
             provides=constants.AMPS_DATA))
         new_LB_net_subflow.add(a10_network_tasks.ApplyQos(
             requires=(constants.LOADBALANCER, constants.AMPS_DATA, constants.UPDATE_DICT)))
@@ -603,7 +612,8 @@ class LoadBalancerFlows(object):
             requires=(constants.SUBNET, constants.AMPHORA,
                       a10constants.MEMBER_COUNT, a10constants.L2DSR_FLAVOR)))
         update_LB_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         update_LB_flow.add(virtual_server_tasks.UpdateVirtualServerTask(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER,
@@ -637,7 +647,8 @@ class LoadBalancerFlows(object):
 
         # device-name flavor support
         update_LB_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         update_LB_flow.add(vthunder_tasks.GetVthunderConfByFlavor(
             inject={a10constants.VTHUNDER_CONFIG: vthunder_conf,
@@ -707,7 +718,8 @@ class LoadBalancerFlows(object):
 
         # device-name flavor support
         lb_create_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         lb_create_flow.add(vthunder_tasks.GetVthunderConfByFlavor(
             inject={a10constants.VTHUNDER_CONFIG: vthunder_conf,
@@ -717,9 +729,14 @@ class LoadBalancerFlows(object):
             provides=(a10constants.VTHUNDER_CONFIG, a10constants.USE_DEVICE_FLAVOR)))
         lb_create_flow.add(a10_database_tasks.CreateRackVthunderEntry(
             name='create_rack_vThunder_entry_in_database1',
-            requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG)))
-        lb_create_flow.add(vthunder_tasks.HandleACOSPartitionChange(
             requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG),
+            provides=(a10constants.VTHUNDER_CONFIG)))
+        lb_create_flow.add(a10_database_tasks.GetVThunderByLoadBalancer(
+            name='get_thunder_with_password',
+            requires=constants.LOADBALANCER,
+            provides=a10constants.VTHUNDER))
+        lb_create_flow.add(vthunder_tasks.HandleACOSPartitionChange(
+            requires=(constants.LOADBALANCER, a10constants.VTHUNDER_CONFIG, a10constants.VTHUNDER),
             provides=a10constants.VTHUNDER_CONFIG))
         lb_create_flow.add(
             a10_database_tasks.CheckExistingThunderToProjectMappedEntries(
@@ -773,7 +790,7 @@ class LoadBalancerFlows(object):
             )
         return lb_create_flow
 
-    def get_delete_rack_vthunder_load_balancer_flow(self, lb, cascade, vthunder_conf, device_dict):
+    def get_delete_rack_vthunder_load_balancer_flow(self, lb, cascade, listeners, vthunder_conf, device_dict):
         """Flow to delete rack load balancer"""
 
         store = {}
@@ -794,7 +811,8 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(database_tasks.MarkLBAmphoraeHealthBusy(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(a10_database_tasks.GetFlavorData(
-            rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
+            rebind={constants.PROVISIONING_STATUS: constants.PROVISIONING_STATUS,
+                    constants.FLAVOR_ID: constants.FLAVOR_ID},
             provides=constants.FLAVOR_DATA))
         delete_LB_flow.add(vthunder_tasks.GetVthunderConfByFlavor(
             inject={a10constants.VTHUNDER_CONFIG: vthunder_conf,
@@ -803,7 +821,7 @@ class LoadBalancerFlows(object):
                       a10constants.DEVICE_CONFIG_DICT, constants.FLAVOR_DATA),
             provides=(a10constants.VTHUNDER_CONFIG, a10constants.USE_DEVICE_FLAVOR)))
         if cascade:
-            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb)
+            (pools_listeners_delete, store) = self._get_cascade_delete_pools_listeners_flow(lb, listeners)
             delete_LB_flow.add(pools_listeners_delete)
         delete_LB_flow.add(a10_network_tasks.GetLBResourceSubnet(
             rebind={a10constants.LB_RESOURCE: constants.LOADBALANCER},
@@ -865,7 +883,7 @@ class LoadBalancerFlows(object):
         delete_LB_flow.add(a10_database_tasks.SetThunderUpdatedAt(
             name=a10constants.SET_THUNDER_UPDATE_AT,
             requires=a10constants.VTHUNDER))
-        if lb.topology == "ACTIVE_STANDBY":
+        if lb.get('topology') == "ACTIVE_STANDBY":
             delete_LB_flow.add(a10_database_tasks.GetBackupVThunderByLoadBalancer(
                 requires=constants.LOADBALANCER,
                 provides=a10constants.BACKUP_VTHUNDER))
@@ -1040,7 +1058,7 @@ class LoadBalancerFlows(object):
 
         return delete_lb_vrid_subflow
 
-    def _get_cascade_delete_pools_listeners_flow(self, lb):
+    def _get_cascade_delete_pools_listeners_flow(self, lb, listeners):
         """Sets up an internal delete flow
         Because task flow doesn't support loops we store each pool
         and listener we want to delete in the store part and then rebind
@@ -1052,50 +1070,50 @@ class LoadBalancerFlows(object):
         store = {}
         # loop for loadbalancer's l7policy deletion
         l7policy_delete_flow = None
-        for listener in lb.listeners:
+        for listener in lb.get(constants.LISTENERS):
             l7policy_delete_flow = linear_flow.Flow('l7policy_delete_flow')
-            for l7policy in listener.l7policies:
-                l7policy_name = 'l7policy_' + l7policy.id
+            for l7policy in listener.get(constants.L7POLICIES):
+                l7policy[constants.L7POLICY_ID] = l7policy.get(constants.ID)
+                l7policy_name = 'l7policy_' + l7policy[constants.L7POLICY_ID]
                 store[l7policy_name] = l7policy
                 l7policy_delete_flow.add(
-                    self._l7policy_flows.get_cascade_delete_l7policy_internal_flow(l7policy_name))
+                    self._l7policy_flows.get_cascade_delete_l7policy_internal_flow(l7policy, listeners))
         if l7policy_delete_flow:
             pools_listeners_delete_flow.add(l7policy_delete_flow)
 
         # loop for loadbalancer's pool deletion
-        for pool in lb.pools:
-            pool_name = 'pool' + pool.id
-            members = pool.members
+        for pool in lb.get(constants.POOLS):
+            pool_id = pool.get(constants.ID)
+            pool_name = 'pool' + pool_id
+            members = pool.get(constants.MEMBERS)
             store[pool_name] = pool
-            listeners = pool.listeners
+            listeners_obj = pool.get(constants.LISTENERS)
             default_listener = None
-            pool_listener_name = 'pool_listener' + pool.id
-            if listeners:
-                default_listener = pool.listeners[0]
+            pool_listener_name = 'pool_listener' + pool_id
+            if listeners_obj:
+                default_listener = pool.get(constants.LISTENERS)[0]
             store[pool_listener_name] = default_listener
             health_mon = None
-            health_monitor = pool.health_monitor
+            health_monitor = pool.get(constants.HEALTH_MONITOR)
             if health_monitor is not None:
-                health_mon = 'health_mon' + health_monitor.id
+                health_mon = 'health_mon' + health_monitor.get(constants.ID)
                 store[health_mon] = health_monitor
             (pool_delete, pool_store) = self._pool_flows.get_cascade_delete_pool_internal_flow(
-                pool_name, members, pool_listener_name, health_mon)
+                pool, members, default_listener, health_monitor)
             store.update(pool_store)
             pools_listeners_delete_flow.add(pool_delete)
 
         # loop for loadbalancer's listener deletion
         listeners_delete_flow = unordered_flow.Flow('listener_delete_flow')
-        for listener in lb.listeners:
-            listener_name = 'listener_' + listener.id
-            store[listener_name] = listener
+        for listener in listeners:
             listeners_delete_flow.add(
                 self._listener_flows.get_cascade_delete_listener_internal_flow(
-                    listener, listener_name))
+                    listener))
 
         pools_listeners_delete_flow.add(listeners_delete_flow)
         # move UpdateVIPForDelete() out from unordered_flow loop, call it multiple time at the
         # same time will add/del same rules at the same time and causing error from neutron.
-        if lb.amphorae:
+        if lb.get(constants.AMPHORAE):
             pools_listeners_delete_flow.add(a10_database_tasks.GetLatestLoadBalancer(
                 requires=constants.LOADBALANCER,
                 provides=constants.LOADBALANCER))

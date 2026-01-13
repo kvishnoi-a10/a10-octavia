@@ -27,6 +27,7 @@ from octavia_lib.api.drivers import exceptions
 from octavia_lib.api.drivers import provider_base as driver_base
 
 from a10_octavia.api.drivers import flavor_schema
+from a10_octavia.common import utils
 
 
 CONF = cfg.CONF
@@ -58,17 +59,17 @@ class A10ProviderDriver(driver_base.ProviderDriver):
             loadbalancer.flavor = None
         if loadbalancer.availability_zone == driver_dm.Unset:
             loadbalancer.availability_zone = None
-        payload = {constants.LOADBALANCER: loadbalancer.to_dict(),
+        payload = {constants.LOADBALANCER: loadbalancer.to_dict(recurse=True),
                    constants.FLAVOR: loadbalancer.flavor}
         self.client.cast({}, 'create_load_balancer', **payload)
 
     def loadbalancer_delete(self, loadbalancer, cascade=False):
-        payload = {constants.LOADBALANCER: loadbalancer.to_dict(), 'cascade': cascade}
+        payload = {constants.LOADBALANCER: loadbalancer.to_dict(recurse=True), 'cascade': cascade}
         self.client.cast({}, 'delete_load_balancer', **payload)
 
     def loadbalancer_update(self, original_load_balancer, new_loadbalancer):
         # Adapt the provider data model to the queue schema
-        lb_dict = new_loadbalancer.to_dict()
+        lb_dict = new_loadbalancer.to_dict(recurse=True)
         if 'admin_state_up' in lb_dict:
             lb_dict['enabled'] = lb_dict.pop('admin_state_up')
         
@@ -81,42 +82,51 @@ class A10ProviderDriver(driver_base.ProviderDriver):
             lb_dict["vip"] = vip_dict
 
         payload = {constants.ORIGINAL_LOADBALANCER:
-                   original_load_balancer.to_dict(),
+                   original_load_balancer.to_dict(recurse=True),
                    constants.LOAD_BALANCER_UPDATES: lb_dict}
         self.client.cast({}, 'update_load_balancer', **payload)
 
+    # def _encrypt_tls_container_data(self, tls_container_data):
+    #     for key, val in tls_container_data.items():
+    #         if isinstance(val, bytes):
+    #             tls_container_data[key] = self.fernet.encrypt(val)
+    #         elif isinstance(val, list):
+    #             encrypt_vals = []
+    #             for i in val:
+    #                 if isinstance(i, bytes):
+    #                     encrypt_vals.append(self.fernet.encrypt(i))
+    #                 else:
+    #                     encrypt_vals.append(i)
+    #             tls_container_data[key] = encrypt_vals
+
     # Many other methods may be inheritted from Amphora
-    def _encrypt_listener_dict(self, listener_dict):
-        # We need to encrypt the user cert/key data for sending it
-        # over messaging.
-        if listener_dict.get(constants.DEFAULT_TLS_CONTAINER_DATA, False):
-            container_data = listener_dict[constants.DEFAULT_TLS_CONTAINER_DATA]
-            self._encrypt_tls_container_data(container_data)
-        if listener_dict.get(constants.SNI_CONTAINER_DATA, False):
-            sni_list = []
-            for sni_data in listener_dict[constants.SNI_CONTAINER_DATA]:
-                self._encrypt_tls_container_data(sni_data)
-                sni_list.append(sni_data)
-            if sni_list:
-                listener_dict[constants.SNI_CONTAINER_DATA] = sni_list
+    # def _encrypt_listener_dict(self, listener_dict):
+    #     # We need to encrypt the user cert/key data for sending it
+    #     # over messaging.
+    #     if listener_dict.get(constants.DEFAULT_TLS_CONTAINER_DATA, False):
+    #         container_data = listener_dict[constants.DEFAULT_TLS_CONTAINER_DATA]
+    #         self._encrypt_tls_container_data(container_data)
+    #     if listener_dict.get(constants.SNI_CONTAINER_DATA, False):
+    #         sni_list = []
+    #         for sni_data in listener_dict[constants.SNI_CONTAINER_DATA]:
+    #             self._encrypt_tls_container_data(sni_data)
+    #             sni_list.append(sni_data)
+    #         if sni_list:
+    #             listener_dict[constants.SNI_CONTAINER_DATA] = sni_list
 
     def listener_create(self, listener):
         LOG.info('A10 provider load_balancer loadbalancer: %s.', listener.__dict__)
-        payload = {constants.LISTENER: listener.to_dict()}
-        self._encrypt_listener_dict(payload[constants.LISTENER])
+        payload = {constants.LISTENER: listener.to_dict(recurse=True)}
         self.client.cast({}, 'create_listener', **payload)
 
     def listener_delete(self, listener):
-        payload = {constants.LISTENER: listener.to_dict()}
+        payload = {constants.LISTENER: listener.to_dict(recurse=True)}
         self.client.cast({}, 'delete_listener', **payload)
 
     def listener_update(self, old_listener, new_listener):
-        listener_dict = new_listener.to_dict()
-        original_listener = old_listener.to_dict()
-        listener_updates = new_listener.to_dict()
-
-        self._encrypt_listener_dict(original_listener)
-        self._encrypt_listener_dict(listener_updates)
+        listener_dict = new_listener.to_dict(recurse=True)
+        original_listener = old_listener.to_dict(recurse=True)
+        listener_updates = new_listener.to_dict(recurse=True)
 
         if 'default_tls_container_ref' in listener_dict:
             listener_dict['tls_certificate_id'] = listener_dict.pop('default_tls_container_ref')
@@ -161,16 +171,16 @@ class A10ProviderDriver(driver_base.ProviderDriver):
         self.client.cast({}, 'update_pool', **payload)
 
     def member_create(self, member):
-        payload = {constants.MEMBER: member.to_dict()}
+        payload = {constants.MEMBER: member.to_dict(recurse=True)}
         self.client.cast({}, 'create_member', **payload)
 
     def member_delete(self, member):
-        payload = {constants.MEMBER: member.to_dict()}
+        payload = {constants.MEMBER: member.to_dict(recurse=True)}
         self.client.cast({}, 'delete_member', **payload)
 
     def member_update(self, old_member, new_member):
-        original_member = old_member.to_dict()
-        member_updates = new_member.to_dict()
+        original_member = old_member.to_dict(recurse=True)
+        member_updates = new_member.to_dict(recurse=True)
         if 'admin_state_up' in member_updates:
             member_updates['enabled'] = member_updates.pop('admin_state_up')
         member_updates.pop(constants.MEMBER_ID)
@@ -183,7 +193,7 @@ class A10ProviderDriver(driver_base.ProviderDriver):
         with session.begin():
             db_pool = self.repositories.pool.get(session, id=pool_id)
 
-        old_members = pool.members
+        old_members = db_pool.members
 
         old_member_ids = [m.id for m in old_members]
         # The driver will always pass objects with IDs.
@@ -217,15 +227,15 @@ class A10ProviderDriver(driver_base.ProviderDriver):
 
     # Health Monitor
     def health_monitor_create(self, healthmonitor):
-        payload = {constants.HEALTH_MONITOR: healthmonitor.to_dict()}
+        payload = {constants.HEALTH_MONITOR: healthmonitor.to_dict(recurse=True)}
         self.client.cast({}, 'create_health_monitor', **payload)
 
     def health_monitor_delete(self, healthmonitor):
-        payload = {constants.HEALTH_MONITOR: healthmonitor.to_dict()}
+        payload = {constants.HEALTH_MONITOR: healthmonitor.to_dict(recurse=True)}
         self.client.cast({}, 'delete_health_monitor', **payload)
 
     def health_monitor_update(self, old_healthmonitor, new_healthmonitor):
-        healthmon_dict = new_healthmonitor.to_dict()
+        healthmon_dict = new_healthmonitor.to_dict(recurse=True)
         if 'admin_state_up' in healthmon_dict:
             healthmon_dict['enabled'] = healthmon_dict.pop('admin_state_up')
         if 'max_retries_down' in healthmon_dict:
@@ -243,15 +253,15 @@ class A10ProviderDriver(driver_base.ProviderDriver):
     # L7Policy
 
     def l7policy_create(self, l7policy):
-        payload = {constants.L7POLICY: l7policy.to_dict()}
+        payload = {constants.L7POLICY: l7policy.to_dict(recurse=True)}
         self.client.cast({}, 'create_l7policy', **payload)
 
     def l7policy_delete(self, l7policy):
-        payload = {constants.L7POLICY: l7policy.to_dict()}
+        payload = {constants.L7POLICY: l7policy.to_dict(recurse=True)}
         self.client.cast({}, 'delete_l7policy', **payload)
 
     def l7policy_update(self, old_l7policy, new_l7policy):
-        l7policy_dict = new_l7policy.to_dict()
+        l7policy_dict = new_l7policy.to_dict(recurse=True)
         if 'admin_state_up' in l7policy_dict:
             l7policy_dict['enabled'] = l7policy_dict.pop(constants.ADMIN_STATE_UP)
         l7policy_dict.pop(constants.L7POLICY_ID)
@@ -263,15 +273,15 @@ class A10ProviderDriver(driver_base.ProviderDriver):
     # L7 Rule
 
     def l7rule_create(self, l7rule):
-        payload = {constants.L7RULE: l7rule.to_dict()}
+        payload = {constants.L7RULE: l7rule.to_dict(recurse=True)}
         self.client.cast({}, 'create_l7rule', **payload)
 
     def l7rule_delete(self, l7rule):
-        payload = {constants.L7RULE: l7rule.to_dict()}
+        payload = {constants.L7RULE: l7rule.to_dict(recurse=True)}
         self.client.cast({}, 'delete_l7rule', **payload)
 
     def l7rule_update(self, old_l7rule, new_l7rule):
-        l7rule_dict = new_l7rule.to_dict()
+        l7rule_dict = new_l7rule.to_dict(recurse=True)
         if constants.ADMIN_STATE_UP in l7rule_dict:
             l7rule_dict['enabled'] = l7rule_dict.pop(constants.ADMIN_STATE_UP)
         l7rule_dict.pop(constants.L7RULE_ID)

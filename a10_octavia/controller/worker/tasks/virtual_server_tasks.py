@@ -18,6 +18,7 @@ from oslo_log import log as logging
 from requests import exceptions
 from taskflow import task
 from octavia.common import constants
+
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator_for_revert
 from a10_octavia.controller.worker.tasks import utils
@@ -36,9 +37,7 @@ class LoadBalancerParent(object):
             'vrid': CONF.slb.default_virtual_server_vrid,
             'virtual_server': utils.meta(loadbalancer, 'virtual_server', {})
         }
-
         status = self.axapi_client.slb.UP
-        
         if not loadbalancer.get(constants.PROVISIONING_STATUS, True):
             status = self.axapi_client.slb.DOWN
         config_args['status'] = status

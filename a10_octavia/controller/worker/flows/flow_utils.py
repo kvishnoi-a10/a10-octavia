@@ -40,11 +40,11 @@ def get_create_load_balancer_flow(load_balancer, topology, project_id,
     return LB_FLOWS.get_create_load_balancer_flow(
         load_balancer, topology, project_id, listeners=listeners, pools=pools)
 
-def get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict):
-    return LB_FLOWS.get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict)
+def get_delete_rack_vthunder_load_balancer_flow(lb, cascade, listeners, vthunder_conf, device_dict):
+    return LB_FLOWS.get_delete_rack_vthunder_load_balancer_flow(lb, cascade, listeners, vthunder_conf, device_dict)
 
-def get_delete_load_balancer_flow(lb, deleteCompute, cascade):
-    return LB_FLOWS.get_delete_load_balancer_flow(lb, deleteCompute, cascade)
+def get_delete_load_balancer_flow(lb, listeners, deleteCompute, cascade):
+    return LB_FLOWS.get_delete_load_balancer_flow(lb, listeners, deleteCompute, cascade)
 
 def get_update_rack_load_balancer_flow(vthunder_conf, device_dict, topology):
     return LB_FLOWS.get_update_rack_load_balancer_flow(vthunder_conf, device_dict, topology)
@@ -114,11 +114,17 @@ def get_rack_vthunder_delete_member_flow(vthunder_conf, device_dict):
 def get_delete_member_flow(topology):
     return M_FLOWS.get_delete_member_flow(topology)
 
-def get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated_members, vthunder_conf, device_dict):
-    return M_FLOWS.get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated_members, vthunder_conf, device_dict)
+def get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated_members, vthunder_conf, device_dict, pool):
+    return M_FLOWS.get_rack_vthunder_batch_update_members_flow(old_members, new_members,updated_members, vthunder_conf, device_dict, pool)
 
-def get_batch_update_members_flow(old_members, new_members, updated_members,topology):
-    return M_FLOWS.get_batch_update_members_flow(old_members, new_members, updated_members,topology)
+def get_batch_update_members_flow(old_members, new_members, updated_members, topology, pool):
+    return M_FLOWS.get_batch_update_members_flow(old_members, new_members, updated_members,topology, pool)
+
+def get_rack_vthunder_update_member_flow(vthunder_conf, device_dict):
+    return M_FLOWS.get_rack_vthunder_update_member_flow(vthunder_conf, device_dict)
+
+def get_update_member_flow(topology):
+    return M_FLOWS.get_update_member_flow(topology)
 
 def get_create_pool_flow(topology):
     return P_FLOWS.get_create_pool_flow(topology)
@@ -143,6 +149,3 @@ def get_reload_check_flow(vthunder, store):
 
 def get_listener_stats_flow(vthunder, store):
     return LISTENER_FLOWS.get_listener_stats_flow(vthunder, store)
-
-def get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict):
-    return LB_FLOWS.get_delete_rack_vthunder_load_balancer_flow(lb, cascade, vthunder_conf, device_dict)
