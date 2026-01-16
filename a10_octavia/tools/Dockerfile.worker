@@ -1,8 +1,8 @@
 # Dockerfile.worker
-FROM localhost:5000/a10-octavia-base:v1
+FROM localhost:5000/a10-octavia-base:v2
 
 # Copy role scripts into the container
-COPY a10-octavia-worker /usr/local/bin/a10-octavia-worker
+COPY ../install/a10-octavia-worker /usr/local/bin/a10-octavia-worker
 
 RUN chmod +x /usr/local/bin/a10-octavia-worker 
 

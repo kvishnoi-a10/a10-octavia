@@ -2,7 +2,7 @@
 FROM localhost:5000/a10-octavia-base:v1
 
 # Copy role scripts into the container
-COPY a10-health-manager /usr/local/bin/a10-health-manager
+COPY ../install/a10-health-manager /usr/local/bin/a10-health-manager
 
 RUN chmod +x /usr/local/bin/a10-health-manager
 

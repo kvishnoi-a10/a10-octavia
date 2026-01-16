@@ -2,7 +2,7 @@
 FROM localhost:5000/a10-octavia-base:v1
 
 # Copy role scripts into the container
-COPY a10-house-keeper /usr/local/bin/a10-house-keeper
+COPY ../install/a10-house-keeper /usr/local/bin/a10-house-keeper
 
 RUN chmod +x /usr/local/bin/a10-house-keeper 
 
