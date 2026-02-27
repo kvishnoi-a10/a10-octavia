@@ -113,8 +113,7 @@ class CalculateAmphoraDelta(BaseNetworkTask):
             amphora_id=amphora[constants.ID],
             compute_id=amphora[constants.COMPUTE_ID],
             add_nics=add_nics, delete_nics=delete_nics)
-        return delta
-        
+        return delta.to_dict(recurse=True)
 class CalculateDelta(BaseNetworkTask):
     """Task to calculate the delta between
 
