@@ -79,8 +79,11 @@ class CalculateAmphoraDelta(BaseNetworkTask):
             session = db_apis.get_session()
             with session.begin():
                 db_lb = self.loadbalancer_repo.get(
-                    session, id=loadbalancer[constants.LOADBALANCER_ID])
-
+                    session, id=loadbalancer[constants.ID])
+            LOG.debug("Loadbalancer DB: %s",db_lb)
+            if db_lb.vip.subnet_id:
+                loadbalancer_vip_network = self.network_driver.get_subnet(db_lb.vip.subnet_id).network_id
+                desired_network_ids.add(loadbalancer_vip_network)
             for pool in db_lb.pools:
                 for member in pool.members:
                     if member.subnet_id and member in member_list and member.provisioning_status != constants.PENDING_DELETE:
@@ -90,12 +93,6 @@ class CalculateAmphoraDelta(BaseNetworkTask):
                                     "issuance of create command/API call for member %s. "
                                     "Skipping interface attachment", member.id)
                     desired_network_ids.update(member_networks)
-        loadbalancer_networks = [
-            self.network_driver.get_subnet(loadbalancer[constants.VIP_SUBNET_ID]).network_id
-            for loadbalancer in loadbalancers_list
-            if loadbalancer[constants.VIP_SUBNET_ID]
-        ]
-        desired_network_ids.update(loadbalancer_networks)
         LOG.debug("[NetIF] desired_network_ids.update{0}".format(desired_network_ids))
 
         nics = self.network_driver.get_plugged_networks(amphora[constants.COMPUTE_ID])
