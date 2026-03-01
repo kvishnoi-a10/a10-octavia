@@ -73,18 +73,33 @@ class CalculateAmphoraDelta(BaseNetworkTask):
 
         #desired_network_ids = set(CONF.a10_controller_worker.amp_boot_network_list[:])
         management_nets = set(CONF.a10_controller_worker.amp_boot_network_list[:])
-        session = db_apis.get_session()
-        with session.begin():
+        # session = db_apis.get_session()
+        # with session.begin():
+        #         db_lb = self.loadbalancer_repo.get(
+        #             session, id=loadbalancer[constants.LOADBALANCER_ID])
+        # desired_subnet_to_net_map = {
+        #     loadbalancer[constants.VIP_SUBNET_ID]:
+        #     loadbalancer[constants.VIP_NETWORK_ID]
+        # }
+        desired_subnet_to_net_map = {}
+        loadbalancer_subnet_network_map = {
+            loadbalancer['vip_subnet_id']: self.network_driver
+                .get_subnet(loadbalancer['vip_subnet_id'])
+                .network_id
+            for loadbalancer in loadbalancers_list
+            if loadbalancer['vip_subnet_id']
+        }
+        desired_subnet_to_net_map.update(loadbalancer_subnet_network_map)
+
+        for loadbalancer in loadbalancers_list:
+            LOG.debug("Loadbalancer: %s",loadbalancer)
+            session = db_apis.get_session()
+            with session.begin():
                 db_lb = self.loadbalancer_repo.get(
                     session, id=loadbalancer[constants.LOADBALANCER_ID])
-        desired_subnet_to_net_map = {
-            loadbalancer[constants.VIP_SUBNET_ID]:
-            loadbalancer[constants.VIP_NETWORK_ID]
-        }
-        for loadbalancer in loadbalancers_list:
             for pool in db_lb.pools:
                 for member in pool.members:
-                    if member.subnet_id and member in member_list:
+                    if member.subnet_id and member in member_list and member.provisioning_status != constants.PENDING_DELETE:
                         member_network = self.network_driver.get_subnet(
                             member.subnet_id).network_id
                         desired_subnet_to_net_map[member.subnet_id] = (
@@ -128,6 +143,9 @@ class CalculateAmphoraDelta(BaseNetworkTask):
             nic.network_id: nic
             for nic in nics
             if nic.network_id not in management_nets}
+        
+        for network_id, nic in network_to_nic_map.items():
+            LOG.info("NIC info: %s", nic.to_dict())
 
         plugged_network_ids = set(network_to_nic_map)
 
@@ -150,12 +168,16 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         # Calculate member Subnet deltas
         plugged_subnets = {}
         for nic in network_to_nic_map.values():
+            LOG.info("fixed_ips from nic for vip network %s", nic.fixed_ips)
+            LOG.info("port from nic for vip network %s", nic.port_id)
             for fixed_ip in nic.fixed_ips or []:
                 plugged_subnets[fixed_ip.subnet_id] = nic.network_id
 
         plugged_subnet_ids = set(plugged_subnets)
         del_subnet_ids = plugged_subnet_ids - desired_subnet_ids
+        LOG.info("delete subnet_ids: %s", del_subnet_ids)
         add_subnet_ids = desired_subnet_ids - plugged_subnet_ids
+        LOG.info("add subnet_ids: %s", add_subnet_ids)
 
         def _subnet_updates(subnet_ids, subnets):
             updates = []
