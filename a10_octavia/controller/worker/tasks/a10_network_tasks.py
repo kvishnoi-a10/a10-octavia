@@ -61,63 +61,128 @@ class BaseNetworkTask(task.Task):
             self._network_driver = a10_utils.get_network_driver()
         return self._network_driver
 
+
 class CalculateAmphoraDelta(BaseNetworkTask):
 
     default_provides = constants.DELTA
 
     def execute(self, loadbalancer, loadbalancers_list, amphora, member_list):
-        LOG.debug("Calculating network delta for amphora id: %s", amphora[constants.ID])
+        LOG.debug("Calculating network delta for amphora id: %s", amphora.get(constants.ID))
         # Figure out what networks we want
         # seed with lb network(s)
-        desired_network_ids = set(CONF.a10_controller_worker.amp_boot_network_list[:])
-        if CONF.a10_controller_worker.amp_mgmt_network:
-            desired_network_ids.add(CONF.a10_controller_worker.amp_mgmt_network)
-        member_networks = []
-        LOG.debug("Loadbalancer List: %s",loadbalancers_list)
-        for loadbalancer in loadbalancers_list:
-            LOG.debug("Loadbalancer: %s",loadbalancer)
-            session = db_apis.get_session()
-            with session.begin():
+
+        #desired_network_ids = set(CONF.a10_controller_worker.amp_boot_network_list[:])
+        management_nets = set(CONF.a10_controller_worker.amp_boot_network_list[:])
+        session = db_apis.get_session()
+        with session.begin():
                 db_lb = self.loadbalancer_repo.get(
                     session, id=loadbalancer[constants.LOADBALANCER_ID])
-
+        desired_subnet_to_net_map = {
+            loadbalancer[constants.VIP_SUBNET_ID]:
+            loadbalancer[constants.VIP_NETWORK_ID]
+        }
+        for loadbalancer in loadbalancers_list:
             for pool in db_lb.pools:
                 for member in pool.members:
-                    if member.subnet_id and member in member_list and member.provisioning_status != constants.PENDING_DELETE:
-                        member_networks = [self.network_driver.get_subnet(member.subnet_id).network_id]
+                    if member.subnet_id and member in member_list:
+                        member_network = self.network_driver.get_subnet(
+                            member.subnet_id).network_id
+                        desired_subnet_to_net_map[member.subnet_id] = (
+                            member_network)
                     else:
                         LOG.warning("Subnet id argument was not specified during "
                                     "issuance of create command/API call for member %s. "
                                     "Skipping interface attachment", member.id)
-                    desired_network_ids.update(member_networks)
-        loadbalancer_networks = [
-            self.network_driver.get_subnet(loadbalancer[constants.VIP_SUBNET_ID]).network_id
-            for loadbalancer in loadbalancers_list
-            if loadbalancer[constants.VIP_SUBNET_ID]
-        ]
-        desired_network_ids.update(loadbalancer_networks)
+
+                    #desired_network_ids.update(member_networks)
+        desired_network_ids = set(desired_subnet_to_net_map.values())
+        desired_subnet_ids = set(desired_subnet_to_net_map)
+
+        # loadbalancer_networks = [
+        #     self.network_driver.get_subnet(loadbalancer['vip_subnet_id']).network_id
+        #     for loadbalancer in loadbalancers_list
+        #     if loadbalancer['vip_subnet_id']
+        # ]
+        # desired_network_ids.update(loadbalancer_networks)
         LOG.debug("[NetIF] desired_network_ids.update{0}".format(desired_network_ids))
 
-        nics = self.network_driver.get_plugged_networks(amphora[constants.COMPUTE_ID])
+        #nics = self.network_driver.get_plugged_networks(amphora.compute_id)
+        nics = self.network_driver.get_plugged_networks(
+            amphora[constants.COMPUTE_ID])
         # assume we don't have two nics in the same network
-        actual_network_nics = dict((nic.network_id, nic) for nic in nics)
-        LOG.debug("[NetIF] actual_network_nics {0}".format(actual_network_nics))
-        
-        del_ids = set(actual_network_nics) - desired_network_ids
+        # actual_network_nics = dict((nic.network_id, nic) for nic in nics)
+        # LOG.debug("[NetIF] actual_network_nics {0}".format(actual_network_nics))
+
+        # del_ids = set(actual_network_nics) - desired_network_ids
+        # delete_nics = list(
+        #     actual_network_nics[net_id] for net_id in del_ids)
+
+        # add_ids = desired_network_ids - set(actual_network_nics)
+        # add_nics = list(n_data_models.Interface(
+        #     network_id=net_id) for net_id in add_ids)
+        # delta = n_data_models.Delta(
+        #     amphora_id=amphora.id, compute_id=amphora.compute_id,
+        #     add_nics=add_nics, delete_nics=delete_nics)
+        # return delta
+        network_to_nic_map = {
+            nic.network_id: nic
+            for nic in nics
+            if nic.network_id not in management_nets}
+
+        plugged_network_ids = set(network_to_nic_map)
+
+        del_ids = plugged_network_ids - desired_network_ids
         delete_nics = [n_data_models.Interface(
-            network_id=net_id,)
+            network_id=net_id,
+            port_id=network_to_nic_map[net_id].port_id)
             for net_id in del_ids]
-        
-        add_ids = desired_network_ids - set(actual_network_nics)
-        add_nics = list(n_data_models.Interface(
-            network_id=net_id) for net_id in add_ids)
-        
+
+        add_ids = desired_network_ids - plugged_network_ids
+        add_nics = [n_data_models.Interface(
+            network_id=add_net_id,
+            fixed_ips=[
+                n_data_models.FixedIP(
+                    subnet_id=subnet_id)
+                for subnet_id, net_id in desired_subnet_to_net_map.items()
+                if net_id == add_net_id])
+            for add_net_id in add_ids]
+
+        # Calculate member Subnet deltas
+        plugged_subnets = {}
+        for nic in network_to_nic_map.values():
+            for fixed_ip in nic.fixed_ips or []:
+                plugged_subnets[fixed_ip.subnet_id] = nic.network_id
+
+        plugged_subnet_ids = set(plugged_subnets)
+        del_subnet_ids = plugged_subnet_ids - desired_subnet_ids
+        add_subnet_ids = desired_subnet_ids - plugged_subnet_ids
+
+        def _subnet_updates(subnet_ids, subnets):
+            updates = []
+            for s in subnet_ids:
+                network_id = subnets[s]
+                nic = network_to_nic_map.get(network_id)
+                port_id = nic.port_id if nic else None
+                updates.append({
+                    constants.SUBNET_ID: s,
+                    constants.NETWORK_ID: network_id,
+                    constants.PORT_ID: port_id
+                })
+            return updates
+
+        add_subnets = _subnet_updates(add_subnet_ids,
+                                      desired_subnet_to_net_map)
+        del_subnets = _subnet_updates(del_subnet_ids,
+                                      plugged_subnets)
+
         delta = n_data_models.Delta(
             amphora_id=amphora[constants.ID],
             compute_id=amphora[constants.COMPUTE_ID],
-            add_nics=add_nics, delete_nics=delete_nics)
-        return delta
-        
+            add_nics=add_nics, delete_nics=delete_nics,
+            add_subnets=add_subnets,
+            delete_subnets=del_subnets)
+        return delta.to_dict(recurse=True)
+
 class CalculateDelta(BaseNetworkTask):
     """Task to calculate the delta between
 
