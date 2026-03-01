@@ -82,14 +82,6 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         #     loadbalancer[constants.VIP_NETWORK_ID]
         # }
         desired_subnet_to_net_map = {}
-        loadbalancer_subnet_network_map = {
-            loadbalancer['vip_subnet_id']: self.network_driver
-                .get_subnet(loadbalancer['vip_subnet_id'])
-                .network_id
-            for loadbalancer in loadbalancers_list
-            if loadbalancer['vip_subnet_id']
-        }
-        desired_subnet_to_net_map.update(loadbalancer_subnet_network_map)
 
         for loadbalancer in loadbalancers_list:
             LOG.debug("Loadbalancer: %s",loadbalancer)
@@ -97,6 +89,10 @@ class CalculateAmphoraDelta(BaseNetworkTask):
             with session.begin():
                 db_lb = self.loadbalancer_repo.get(
                     session, id=loadbalancer[constants.LOADBALANCER_ID])
+            if db_lb.vip.subnet_id:
+                loadbalancer_vip_network = self.network_driver.get_subnet(db_lb.vip.subnet_id).network_id
+                loadbalancer_subnet_network_map = {db_lb.vip.subnet_id:loadbalancer_vip_network}
+                desired_subnet_to_net_map.update(loadbalancer_subnet_network_map)
             for pool in db_lb.pools:
                 for member in pool.members:
                     if member.subnet_id and member in member_list and member.provisioning_status != constants.PENDING_DELETE:
