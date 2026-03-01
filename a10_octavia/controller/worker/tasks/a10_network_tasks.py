@@ -71,24 +71,15 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         # Figure out what networks we want
         # seed with lb network(s)
 
-        #desired_network_ids = set(CONF.a10_controller_worker.amp_boot_network_list[:])
         management_nets = set(CONF.a10_controller_worker.amp_boot_network_list[:])
-        # session = db_apis.get_session()
-        # with session.begin():
-        #         db_lb = self.loadbalancer_repo.get(
-        #             session, id=loadbalancer[constants.LOADBALANCER_ID])
-        # desired_subnet_to_net_map = {
-        #     loadbalancer[constants.VIP_SUBNET_ID]:
-        #     loadbalancer[constants.VIP_NETWORK_ID]
-        # }
         desired_subnet_to_net_map = {}
 
-        for loadbalancer in loadbalancers_list:
-            LOG.debug("Loadbalancer: %s",loadbalancer)
+        for lb in loadbalancers_list:
+            LOG.debug("Loadbalancer: %s",lb)
             session = db_apis.get_session()
             with session.begin():
                 db_lb = self.loadbalancer_repo.get(
-                    session, id=loadbalancer[constants.ID])
+                    session, id=lb[constants.ID])
             if db_lb.vip.subnet_id:
                 loadbalancer_vip_network = self.network_driver.get_subnet(db_lb.vip.subnet_id).network_id
                 loadbalancer_subnet_network_map = {db_lb.vip.subnet_id:loadbalancer_vip_network}
@@ -105,36 +96,13 @@ class CalculateAmphoraDelta(BaseNetworkTask):
                                     "issuance of create command/API call for member %s. "
                                     "Skipping interface attachment", member.id)
 
-                    #desired_network_ids.update(member_networks)
         desired_network_ids = set(desired_subnet_to_net_map.values())
         desired_subnet_ids = set(desired_subnet_to_net_map)
-
-        # loadbalancer_networks = [
-        #     self.network_driver.get_subnet(loadbalancer['vip_subnet_id']).network_id
-        #     for loadbalancer in loadbalancers_list
-        #     if loadbalancer['vip_subnet_id']
-        # ]
-        # desired_network_ids.update(loadbalancer_networks)
         LOG.debug("[NetIF] desired_network_ids.update{0}".format(desired_network_ids))
+        LOG.debug("[NetIF] desired_subnet_ids.update{0}".format(desired_subnet_ids))
 
-        #nics = self.network_driver.get_plugged_networks(amphora.compute_id)
         nics = self.network_driver.get_plugged_networks(
             amphora[constants.COMPUTE_ID])
-        # assume we don't have two nics in the same network
-        # actual_network_nics = dict((nic.network_id, nic) for nic in nics)
-        # LOG.debug("[NetIF] actual_network_nics {0}".format(actual_network_nics))
-
-        # del_ids = set(actual_network_nics) - desired_network_ids
-        # delete_nics = list(
-        #     actual_network_nics[net_id] for net_id in del_ids)
-
-        # add_ids = desired_network_ids - set(actual_network_nics)
-        # add_nics = list(n_data_models.Interface(
-        #     network_id=net_id) for net_id in add_ids)
-        # delta = n_data_models.Delta(
-        #     amphora_id=amphora.id, compute_id=amphora.compute_id,
-        #     add_nics=add_nics, delete_nics=delete_nics)
-        # return delta
         network_to_nic_map = {
             nic.network_id: nic
             for nic in nics
@@ -144,6 +112,7 @@ class CalculateAmphoraDelta(BaseNetworkTask):
             LOG.info("NIC info: %s", nic.to_dict())
 
         plugged_network_ids = set(network_to_nic_map)
+        LOG.debug("[NetIF] plugged_network_ids.update{0}".format(plugged_network_ids))
 
         del_ids = plugged_network_ids - desired_network_ids
         delete_nics = [n_data_models.Interface(
@@ -170,6 +139,7 @@ class CalculateAmphoraDelta(BaseNetworkTask):
                 plugged_subnets[fixed_ip.subnet_id] = nic.network_id
 
         plugged_subnet_ids = set(plugged_subnets)
+        LOG.debug("[NetIF] plugged_subnets_ids.update{0}".format(plugged_subnet_ids))
         del_subnet_ids = plugged_subnet_ids - desired_subnet_ids
         LOG.info("delete subnet_ids: %s", del_subnet_ids)
         add_subnet_ids = desired_subnet_ids - plugged_subnet_ids
