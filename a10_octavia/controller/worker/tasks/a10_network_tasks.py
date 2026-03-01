@@ -88,7 +88,7 @@ class CalculateAmphoraDelta(BaseNetworkTask):
             session = db_apis.get_session()
             with session.begin():
                 db_lb = self.loadbalancer_repo.get(
-                    session, id=loadbalancer[constants.LOADBALANCER_ID])
+                    session, id=loadbalancer[constants.ID])
             if db_lb.vip.subnet_id:
                 loadbalancer_vip_network = self.network_driver.get_subnet(db_lb.vip.subnet_id).network_id
                 loadbalancer_subnet_network_map = {db_lb.vip.subnet_id:loadbalancer_vip_network}
