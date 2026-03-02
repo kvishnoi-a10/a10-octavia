@@ -344,7 +344,7 @@ class HandleNetworkDelta(BaseNetworkTask):
                 fixed_ips=[{"subnet_id": subnet_id}],
                 device_owner='compute:None'
             )
-            self.network_driver.attach_network_or_port(
+            self.network_driver.plug_port(
                 db_amp.compute_id,
                 port.id
             )
