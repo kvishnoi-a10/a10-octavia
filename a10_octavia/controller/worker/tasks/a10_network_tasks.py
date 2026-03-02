@@ -345,7 +345,7 @@ class HandleNetworkDelta(BaseNetworkTask):
                 device_owner='compute:None'
             )
             self.network_driver.plug_port(
-                db_amp.compute_id,
+                amphora,
                 port.id
             )
             self._fill_port_info(port)
