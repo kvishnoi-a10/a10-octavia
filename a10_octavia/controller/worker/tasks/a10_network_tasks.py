@@ -106,6 +106,8 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         for nic in nics:
             if nic.network_id in management_nets:
                 continue
+            if not nic.fixed_ips:
+                continue
             LOG.info("fixed_ips from nic for vip network %s", nic.fixed_ips)
             LOG.info("port from nic for vip network %s", nic.port_id)
             for fixed_ip in nic.fixed_ips or []:
@@ -335,20 +337,17 @@ class HandleNetworkDelta(BaseNetworkTask):
         updated_ports = {}
         for nic in delta.get(constants.ADD_NICS,[]):
             subnet_id = nic[constants.FIXED_IPS][0][constants.SUBNET_ID]
+            network_id = nic[constants.NETWORK_ID]
             LOG.debug("[NetIF] plug_network %s on %s", nic[constants.NETWORK_ID], db_amp.compute_id)
-            interface = self.network_driver.plug_network(
-                db_amp.compute_id, nic[constants.NETWORK_ID])
-            port = self.network_driver.get_port(interface.port_id)
-            # nova may plugged undesired subnets (it plugs one of the subnets
-            # of the network), we can safely unplug the subnets we don't need,
-            # the desired subnet will be added in the 'ADD_SUBNETS' loop.
-            extra_subnets = [
-                fixed_ip.subnet_id
-                for fixed_ip in port.fixed_ips
-                if fixed_ip.subnet_id != subnet_id]
-            for subnet_id in extra_subnets:
-                port = self.network_driver.unplug_fixed_ip(
-                    port_id=interface.port_id, subnet_id=subnet_id)
+            port = self.network_driver.create_port(
+                network_id=network_id,
+                fixed_ips=[{"subnet_id": subnet_id}],
+                device_owner='compute:None'
+            )
+            self.network_driver.attach_port(
+                db_amp.compute_id,
+                port.id
+            )
             self._fill_port_info(port)
             updated_ports[port.id] = port.to_dict(recurse=True)
 
