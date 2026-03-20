@@ -38,6 +38,7 @@ from a10_octavia.common import utils as a10_utils
 from a10_octavia.controller.worker.tasks.decorators import axapi_client_decorator
 from a10_octavia.controller.worker.tasks import utils as a10_task_utils
 from a10_octavia.db import repositories as a10_repo
+from a10_octavia.controller.worker.tasks.a10_compute_tasks import DetachPortByPortID as ComputeDetachPortByPortID
 from octavia.db import repositories as repo
 
 LOG = logging.getLogger(__name__)
@@ -69,16 +70,23 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         LOG.debug("Calculating network delta for amphora id: %s", amphora.get(constants.ID))
         # Figure out what networks we want
         # seed with lb network(s)
-
         management_nets = set(CONF.a10_controller_worker.amp_boot_network_list[:])
+        if CONF.a10_controller_worker.amp_mgmt_network:
+            management_nets.add(CONF.a10_controller_worker.amp_mgmt_network)
         desired_subnet_to_net_map = {}
 
         for lb in loadbalancers_list:
+            if hasattr(lb, "to_dict"):  
+                lb = lb.to_dict()
+            elif isinstance(lb, dict):
+                lb = lb
+            else:
+                raise TypeError(f"Unsupported lb type: {type(lb)}")
+            lb_id = (lb.get("id") or lb.get("load_balancer_id")or lb.get("loadbalancer_id"))
             LOG.debug("Loadbalancer: %s",lb)
             session = db_apis.get_session()
             with session.begin():
-                db_lb = self.loadbalancer_repo.get(
-                    session, id=lb[constants.ID])
+                db_lb = self.loadbalancer_repo.get(session, id=lb_id)
             if db_lb.vip.subnet_id:
                 loadbalancer_vip_network = self.network_driver.get_subnet(db_lb.vip.subnet_id).network_id
                 loadbalancer_subnet_network_map = {db_lb.vip.subnet_id:loadbalancer_vip_network}
@@ -94,13 +102,10 @@ class CalculateAmphoraDelta(BaseNetworkTask):
                         LOG.warning("Subnet id argument was not specified during "
                                     "issuance of create command/API call for member %s. "
                                     "Skipping interface attachment", member.id)
-
         desired_subnet_ids = set(desired_subnet_to_net_map.keys())
         LOG.debug("[NetIF] desired_subnet_ids.update{0}".format(desired_subnet_ids))
 
-        nics = self.network_driver.get_plugged_networks(
-            amphora[constants.COMPUTE_ID])
-
+        nics = self.network_driver.get_plugged_networks(amphora[constants.COMPUTE_ID])
         # Calculate member Subnet deltas
         plugged_subnets = {}
         for nic in nics:
@@ -108,16 +113,15 @@ class CalculateAmphoraDelta(BaseNetworkTask):
                 continue
             if not nic.fixed_ips:
                 continue
-            LOG.info("fixed_ips from nic for vip network %s", nic.fixed_ips)
-            LOG.info("port from nic for vip network %s", nic.port_id)
+            LOG.debug("fixed_ips from nic for vip network %s", nic.fixed_ips)
+            LOG.debug("port from nic for vip network %s", nic.port_id)
             for fixed_ip in nic.fixed_ips or []:
                 plugged_subnets[fixed_ip.subnet_id] = nic
 
         plugged_subnet_ids = set(plugged_subnets.keys())
         LOG.debug("[NetIF] plugged_subnets_ids.update{0}".format(plugged_subnet_ids))
-        
-        add_nics = []
 
+        add_nics = []
         for subnet_id, network_id in desired_subnet_to_net_map.items():
             if subnet_id not in plugged_subnet_ids:
                 add_nics.append(
@@ -131,15 +135,16 @@ class CalculateAmphoraDelta(BaseNetworkTask):
                     )
                 )
 
-
         delete_nics = []
-
         for subnet_id, nic in plugged_subnets.items():
             if subnet_id not in desired_subnet_ids:
                 delete_nics.append(
                     n_data_models.Interface(
                         network_id=nic.network_id,
-                        port_id=nic.port_id
+                        port_id=nic.port_id,
+                        fixed_ips=[ 
+                    n_data_models.FixedIP(subnet_id=subnet_id)
+                ]
                     )
                 )
 
@@ -325,15 +330,18 @@ class HandleNetworkDelta(BaseNetworkTask):
     def _fill_port_info(self, port):
         port.network = self.network_driver.get_network(port.network_id)
         for fixed_ip in port.fixed_ips:
-            fixed_ip.subnet = self.network_driver.get_subnet(
-                fixed_ip.subnet_id)
+            if hasattr(fixed_ip, "subnet_id"):
+                subnet_id = fixed_ip.subnet_id
+                fixed_ip.subnet = self.network_driver.get_subnet(subnet_id)
+            else:
+                subnet_id = fixed_ip.get("subnet_id")
+                fixed_ip["subnet"] = self.network_driver.get_subnet(subnet_id)
 
     def execute(self, amphora, delta):
         """Handle network plugging based off deltas."""
         session = db_apis.get_session()
         with session.begin():
-            db_amp = self.amphora_repo.get(session,
-                                           id=amphora.get(constants.ID))
+            db_amp = self.amphora_repo.get(session,id=amphora.get(constants.ID))
         updated_ports = {}
         for nic in delta.get(constants.ADD_NICS,[]):
             subnet_id = nic[constants.FIXED_IPS][0][constants.SUBNET_ID]
@@ -344,21 +352,23 @@ class HandleNetworkDelta(BaseNetworkTask):
                 fixed_ips=[{"subnet_id": subnet_id}],
                 device_owner='compute:None'
             )
-            self.network_driver.plug_port(
-                db_amp,
-                port.id
-            )
+            self.network_driver.plug_port(db_amp,port)
             self._fill_port_info(port)
-            updated_ports[port.id] = port.to_dict(recurse=True)
-
+            updated_ports[port.id] = port.to_dict()
         for nic in delta.get(constants.DELETE_NICS,[]):
             port_id = nic[constants.PORT_ID]
+            network_id = nic[constants.NETWORK_ID]
+            subnet_id = nic[constants.FIXED_IPS][0][constants.SUBNET_ID]
+            port = self.network_driver.get_port(port_id)
+            updated_ports[port_id] = (port.to_dict())
+            #detach the port from compute if the subnet is not present on the port anymore
+            detach_port = ComputeDetachPortByPortID()
+            detach_port.execute(db_amp.compute_id, port_id)
+            LOG.debug("[NetIF] detached the interface %s on %s", nic[constants.NETWORK_ID], db_amp.compute_id)
             try:
                 self.network_driver.delete_port(port_id)
             except Exception:
                 LOG.exception("Unable to delete the port")
-
-            updated_ports.pop(port_id, None)
         return {amphora[constants.ID]: list(updated_ports.values())}
 
     def revert(self, result, amphora, delta, *args, **kwargs):
@@ -372,14 +382,6 @@ class HandleNetworkDelta(BaseNetworkTask):
 
         LOG.warning("Unable to plug networks for amp id %s",
                     delta['amphora_id'])
-
-        for nic in delta.get(constants.ADD_NICS, []):
-            port_id = nic.get(constants.PORT_ID)
-            if port_id:
-                try:
-                    self.network_driver.delete_port(port_id)
-                except Exception:
-                    LOG.exception("Unable to delete port %s", port_id)
 
 class HandleNetworkDeltas(BaseNetworkTask):
     """Task to plug and unplug networks

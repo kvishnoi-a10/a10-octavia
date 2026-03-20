@@ -21,7 +21,7 @@ from octavia.controller.worker.v2.tasks import database_tasks
 from octavia.controller.worker.v2.tasks import lifecycle_tasks
 
 from a10_octavia.common import a10constants
-from a10_octavia.controller.worker.tasks import a10_database_tasks
+from a10_octavia.controller.worker.tasks import a10_compute_tasks, a10_database_tasks
 from a10_octavia.controller.worker.tasks import a10_network_tasks
 from a10_octavia.controller.worker.tasks import server_tasks
 from a10_octavia.controller.worker.tasks import vthunder_tasks
@@ -78,6 +78,9 @@ class MemberFlows(object):
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
         # managing interface additions here
+        create_member_flow.add(a10_compute_tasks.RebootInstanceByComputeID( 
+            name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_ATTACH,
+            requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
         create_member_flow.add(
             vthunder_tasks.AmphoraePostMemberNetworkPlug(
                 requires=(
@@ -278,6 +281,9 @@ class MemberFlows(object):
                 name=a10constants.GET_MASTER_VTHUNDER,
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
+        delete_member_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
+            name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH,
+            requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
         delete_member_flow.add(
             vthunder_tasks.AmphoraePostNetworkUnplug(
                 requires=(
@@ -1371,6 +1377,9 @@ class MemberFlows(object):
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
         # managing interface additions here
+        batch_update_members_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
+            name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_ATTACH_OR_DETACH,
+            requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
         batch_update_members_flow.add(
             vthunder_tasks.AmphoraePostMemberNetworkPlug(
                 requires=(

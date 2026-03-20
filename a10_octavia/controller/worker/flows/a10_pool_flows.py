@@ -25,7 +25,7 @@ from octavia.controller.worker.v2.tasks import lifecycle_tasks
 from a10_octavia.common import a10constants
 from a10_octavia.controller.worker.flows import a10_health_monitor_flows
 from a10_octavia.controller.worker.flows import a10_member_flows
-from a10_octavia.controller.worker.tasks import a10_database_tasks
+from a10_octavia.controller.worker.tasks import a10_compute_tasks, a10_database_tasks
 from a10_octavia.controller.worker.tasks import a10_network_tasks
 from a10_octavia.controller.worker.tasks import persist_tasks
 from a10_octavia.controller.worker.tasks import service_group_tasks
@@ -201,6 +201,9 @@ class PoolFlows(object):
             provides=constants.DELTAS))
         delete_pool_flow.add(a10_network_tasks.HandleNetworkDeltas(
             requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
+        delete_pool_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
+            name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH,
+            requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
         delete_pool_flow.add(
             vthunder_tasks.AmphoraePostNetworkUnplug(
                 requires=(

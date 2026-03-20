@@ -298,6 +298,9 @@ class LoadBalancerFlows(object):
                     requires=(a10constants.VTHUNDER,
                               a10constants.MASTER_AMPHORA_STATUS,
                               a10constants.BACKUP_AMPHORA_STATUS)))
+            delete_LB_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
+                name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH,
+                requires= (constants.LOADBALANCER, constants.UPDATED_PORTS)))
             delete_LB_flow.add(vthunder_tasks.AmphoraePostNetworkUnplug(
                 name=a10constants.AMPHORA_POST_NETWORK_UNPLUG,
                 requires=(constants.LOADBALANCER, constants.UPDATED_PORTS, a10constants.VTHUNDER)))
@@ -459,6 +462,9 @@ class LoadBalancerFlows(object):
                     requires=a10constants.VTHUNDER,
                     provides=a10constants.VTHUNDER))
             # managing interface additions here
+            new_LB_net_subflow.add(a10_compute_tasks.RebootInstanceByComputeID(
+                name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_ATTACH,
+                requires= (constants.LOADBALANCER, constants.UPDATED_PORTS)))
             new_LB_net_subflow.add(vthunder_tasks.AmphoraePostVIPPlug(
                 name=a10constants.AMPHORAE_POST_VIP_PLUG,
                 requires=(constants.AMPHORA, a10constants.VTHUNDER,
