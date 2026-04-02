@@ -260,13 +260,14 @@ class RebootInstanceByComputeID(BaseComputeTask):
                 db_lb = self.loadbalancer_repo.get(
                     session, id=loadbalancer[constants.LOADBALANCER_ID])
             if db_lb.amphorae:
-                amphora_id = db_lb.amphorae[0].id
-                if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
-                    compute_id = db_lb.amphorae[0].compute_id
-                    LOG.info("Rebooting compute %s for amphora %s",compute_id, amphora_id)
-                    self.compute.manager.reboot(server=compute_id, reboot_type="HARD")
-                    LOG.debug("Waiting for 30 seconds to trigger amphora reboot.")
-                    time.sleep(30)
-                    LOG.debug("Successfully rebooted amphora: %s", amphora_id)
+                for amphora in db_lb.amphorae:
+                    amphora_id = amphora.id
+                    if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
+                        compute_id = amphora.compute_id
+                        LOG.info("Rebooting compute %s for amphora %s",compute_id, amphora_id)
+                        self.compute.manager.reboot(server=compute_id, reboot_type="HARD")
+                        LOG.debug("Waiting for 30 seconds to trigger amphora reboot.")
+                        time.sleep(30)
+                        LOG.debug("Successfully rebooted amphora: %s", amphora_id)
         except Exception as e:
             LOG.exception("Failed to reboot amphora %s due to: %s",amphora_id, str(e))

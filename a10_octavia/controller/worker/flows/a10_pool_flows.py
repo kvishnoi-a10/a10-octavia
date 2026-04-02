@@ -202,7 +202,7 @@ class PoolFlows(object):
         delete_pool_flow.add(a10_network_tasks.HandleNetworkDeltas(
             requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
         delete_pool_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
-            name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH,
+            name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH_POOL,
             requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
         delete_pool_flow.add(
             vthunder_tasks.AmphoraePostNetworkUnplug(
