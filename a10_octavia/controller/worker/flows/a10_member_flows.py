@@ -63,6 +63,9 @@ class MemberFlows(object):
         create_member_flow.add(a10_database_tasks.GetMemberListByProjectID(
             requires=a10constants.VTHUNDER,
             provides=a10constants.MEMBER_LIST))
+        create_member_flow.add(vthunder_tasks.WriteMemory(
+            name="write-memory-before-interface-attach",
+            requires=a10constants.VTHUNDER))
         create_member_flow.add(a10_network_tasks.CalculateDelta(
             requires=(constants.LOADBALANCER, a10constants.LOADBALANCERS_LIST,
                       a10constants.MEMBER_LIST),
@@ -77,9 +80,6 @@ class MemberFlows(object):
                 name=a10constants.GET_VTHUNDER_MASTER,
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
-        create_member_flow.add(vthunder_tasks.WriteMemory(
-            name="write-memory-before-interface-attach",
-            requires=a10constants.VTHUNDER))
         create_member_flow.add(a10_compute_tasks.RebootInstanceByComputeID( 
             name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_ATTACH_MEMBER,
             requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
@@ -280,6 +280,9 @@ class MemberFlows(object):
             name=a10constants.GET_LB_RESOURCE_SUBNET,
             rebind={a10constants.LB_RESOURCE: constants.MEMBER},
             provides=constants.SUBNET))
+        delete_member_flow.add(vthunder_tasks.WriteMemory(
+            name="write-memory-before-interface-detach",
+            requires=a10constants.VTHUNDER))
         delete_member_flow.add(a10_network_tasks.CalculateDelta(
             requires=(constants.LOADBALANCER, a10constants.LOADBALANCERS_LIST,
                       a10constants.MEMBER_LIST),
@@ -294,9 +297,6 @@ class MemberFlows(object):
                 name=a10constants.GET_MASTER_VTHUNDER,
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
-        delete_member_flow.add(vthunder_tasks.WriteMemory(
-            name="write-memory-before-interface-detach",
-            requires=a10constants.VTHUNDER))
         delete_member_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
             name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH_MEMBER,
             requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
@@ -1389,6 +1389,9 @@ class MemberFlows(object):
         batch_update_members_flow.add(a10_database_tasks.GetMemberListByProjectID(
             requires=a10constants.VTHUNDER,
             provides=a10constants.MEMBER_LIST))
+        batch_update_members_flow.add(vthunder_tasks.WriteMemory(
+                name="write-memory-before-reboot-for-interface-attach-or-detach-member",
+                requires=a10constants.VTHUNDER))
         batch_update_members_flow.add(a10_network_tasks.CalculateDelta(
             requires=(constants.LOADBALANCER, a10constants.LOADBALANCERS_LIST,
                       a10constants.MEMBER_LIST),
@@ -1403,9 +1406,6 @@ class MemberFlows(object):
                 name=a10constants.GET_VTHUNDER_MASTER,
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
-        batch_update_members_flow.add(vthunder_tasks.WriteMemory(
-                name="write-memory-before-reboot-for-interface-attach-or-detach-member",
-                requires=a10constants.VTHUNDER))
         batch_update_members_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
             name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_ATTACH_OR_DETACH_MEMBER,
             requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
