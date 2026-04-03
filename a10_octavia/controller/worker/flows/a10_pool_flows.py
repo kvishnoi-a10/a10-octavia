@@ -201,6 +201,9 @@ class PoolFlows(object):
             provides=constants.DELTAS))
         delete_pool_flow.add(a10_network_tasks.HandleNetworkDeltas(
             requires=constants.DELTAS, provides=constants.UPDATED_PORTS))
+        delete_pool_flow.add(vthunder_tasks.WriteMemory(
+            name="write-memory-before-reboot-for-interface-detach-pool",
+            requires=a10constants.VTHUNDER))
         delete_pool_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
             name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH_POOL,
             requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))

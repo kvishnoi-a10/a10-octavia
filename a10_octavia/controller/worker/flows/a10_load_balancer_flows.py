@@ -298,6 +298,9 @@ class LoadBalancerFlows(object):
                     requires=(a10constants.VTHUNDER,
                               a10constants.MASTER_AMPHORA_STATUS,
                               a10constants.BACKUP_AMPHORA_STATUS)))
+            delete_LB_flow.add(vthunder_tasks.WriteMemory(
+                name="write-memory-before-reboot-for-interface-detach",
+                requires = a10constants.VTHUNDER))
             delete_LB_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
                 name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH,
                 requires= (constants.LOADBALANCER, constants.UPDATED_PORTS)))
@@ -476,6 +479,9 @@ class LoadBalancerFlows(object):
                     name=a10constants.GET_MASTER_VTHUNDER,
                     requires=a10constants.VTHUNDER,
                     provides=a10constants.VTHUNDER))
+            new_LB_net_subflow.add(vthunder_tasks.WriteMemory(
+                    name="write-memory-before-reboot",
+                    requires=a10constants.VTHUNDER))
             new_LB_net_subflow.add(a10_compute_tasks.RebootInstanceByComputeID(
                 name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_ATTACH,
                 requires= (constants.LOADBALANCER, constants.UPDATED_PORTS)))

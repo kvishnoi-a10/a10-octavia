@@ -77,6 +77,9 @@ class MemberFlows(object):
                 name=a10constants.GET_VTHUNDER_MASTER,
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
+        create_member_flow.add(vthunder_tasks.WriteMemory(
+            name="write-memory-before-interface-attach",
+            requires=a10constants.VTHUNDER))
         create_member_flow.add(a10_compute_tasks.RebootInstanceByComputeID( 
             name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_ATTACH_MEMBER,
             requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
@@ -291,6 +294,9 @@ class MemberFlows(object):
                 name=a10constants.GET_MASTER_VTHUNDER,
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
+        delete_member_flow.add(vthunder_tasks.WriteMemory(
+            name="write-memory-before-interface-detach",
+            requires=a10constants.VTHUNDER))
         delete_member_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
             name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_DETACH_MEMBER,
             requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
@@ -1397,7 +1403,9 @@ class MemberFlows(object):
                 name=a10constants.GET_VTHUNDER_MASTER,
                 requires=a10constants.VTHUNDER,
                 provides=a10constants.VTHUNDER))
-        # managing interface additions here
+        batch_update_members_flow.add(vthunder_tasks.WriteMemory(
+                name="write-memory-before-reboot-for-interface-attach-or-detach-member",
+                requires=a10constants.VTHUNDER))
         batch_update_members_flow.add(a10_compute_tasks.RebootInstanceByComputeID(
             name=a10constants.REBOOT_VTHUNDER_FOR_INTERFACE_ATTACH_OR_DETACH_MEMBER,
             requires=(constants.LOADBALANCER, constants.UPDATED_PORTS)))
