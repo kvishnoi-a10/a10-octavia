@@ -1729,7 +1729,7 @@ class VCSDisableEnable(VThunderBaseTask):
                 amphora_id = db_lb.amphorae[0].id if db_lb.amphorae else None
                 if updated_ports and amphora_id in updated_ports and len(updated_ports[amphora_id]) > 0:
                     self.axapi_client.system.action.vcs_disable()
-                    time.sleep(15)
+                    time.sleep(30)
                     self.axapi_client.system.action.vcs_enable()
                     self.axapi_client.system.action.vcs_reload()
                     time.sleep(30)
