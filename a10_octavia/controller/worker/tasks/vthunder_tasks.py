@@ -305,8 +305,26 @@ class AmphoraePostMemberNetworkPlug(VThunderBaseTask):
                         vthunder.ip_address,
                         vthunder.partition_name,
                         last_write_mem=datetime.datetime.utcnow())
-                self.axapi_client.system.action.reload_reboot_for_interface_attachment(
-                    vthunder.acos_version)
+                attempts = 5
+                wait_sec = 10
+
+                while attempts > 0:
+                    try:
+                        self.axapi_client.system.action.reload_reboot_for_interface_detachment(
+                            vthunder.acos_version)
+                        LOG.debug("Reload/Reboot API triggered successfully")
+                        break
+
+                    except acos_errors.ACOSException as e:
+                        if "Service Unavailable" in str(e):
+                            attempts -= 1
+                            LOG.warning("Service Unavailable during reboot trigger. Retrying... attempts left: %s",attempts)
+                            time.sleep(wait_sec)
+                        else:
+                            raise
+                if attempts == 0:
+                    LOG.error("Failed to trigger reload after retries")
+                    raise req_exceptions.ConnectionError("vThunder reboot failed after retries")
                 LOG.debug("Waiting for 30 seconds to trigger vThunder reload/reboot.")
                 time.sleep(30)
                 LOG.debug("Successfully rebooted/reloaded vThunder: %s", vthunder.id)
